@@ -49,6 +49,8 @@ export default function Home() {
   const [selectedModel, setSelectedModel] = useState(null);
   const [groupBy, setGroupBy] = useState('none'); // Options: 'none', 'subscription', 'release'
   const [copied, setCopied] = useState(false); // Track copy to clipboard status
+  const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 1200);
+  const isMobile = windowWidth < 768; // Define mobile breakpoint
   
   // Filter states
   const [filterOptions, setFilterOptions] = useState({
@@ -265,7 +267,23 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedModel, filteredModels]);
-  
+
+  // Handle window resize
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+    
+    window.addEventListener('resize', handleResize);
+    
+    // Auto-collapse filter panel on small screens
+    if (isMobile && showFilters) {
+      setShowFilters(false);
+    }
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, [isMobile]);
+
   // CSS Styles
   const styles = {
     app: {
@@ -277,17 +295,26 @@ export default function Home() {
     container: {
       display: 'flex',
       position: 'relative',
+      ...(isMobile && {
+        flexDirection: 'column',
+      }),
     },
     filtersPanel: {
-      width: showFilters ? '300px' : '50px',
+      width: showFilters ? (isMobile ? '100%' : '300px') : '50px',
       backgroundColor: theme.backgroundLight,
       padding: showFilters ? '20px' : '10px',
-      transition: 'width 0.3s ease',
+      transition: 'width 0.3s ease, left 0.3s ease',
       height: 'calc(100vh - 60px)',
       position: 'sticky',
       top: '60px',
       overflowY: 'auto',
       borderRight: `1px solid ${theme.backgroundDark}`,
+      zIndex: 20,
+      ...(isMobile && {
+        position: 'fixed',
+        left: showFilters ? 0 : '-100%',
+        width: showFilters ? '100%' : '50px',
+      }),
     },
     filterToggle: {
       backgroundColor: 'transparent',
@@ -341,6 +368,9 @@ export default function Home() {
       flex: 1,
       padding: '20px',
       transition: 'margin-left 0.3s ease',
+      ...(isMobile && showFilters && {
+        marginTop: '50px', // Space for the filter toggle button when filters are showing
+      }),
     },
     header: {
       backgroundColor: theme.backgroundDark,
@@ -654,16 +684,36 @@ export default function Home() {
   
   return (
     <div style={styles.app}>
-      <header style={styles.header}>
+      <header style={{
+        ...styles.header,
+        ...(isMobile && {
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          padding: '10px 15px',
+        })
+      }}>
         <div style={styles.headerLeft}>
           <h1 style={styles.heading}>3D Model Gallery</h1>
           <p style={styles.statsText}>
             {modelData.totalCount ? `Found ${filteredModels.length} of ${modelData.totalCount} models` : 'Loading models...'}
           </p>
         </div>
-        <div style={styles.headerRight}>
+        <div style={{
+          ...styles.headerRight,
+          ...(isMobile && {
+            marginTop: '10px',
+            width: '100%',
+            justifyContent: 'space-between',
+          })
+        }}>
           <select 
-            style={styles.viewSelect}
+            style={{
+              ...styles.viewSelect,
+              ...(isMobile && {
+                flex: '1',
+                marginRight: '10px',
+              })
+            }}
             value={groupBy}
             onChange={(e) => setGroupBy(e.target.value)}
           >
@@ -881,7 +931,7 @@ export default function Home() {
                 style={styles.copyLinkButton} 
                 onClick={copyModelLink}
               >
-                Copy Link
+                <span>📋</span> Copy Link
               </button>
               <div style={styles.copyConfirmation}>
                 Link copied!
