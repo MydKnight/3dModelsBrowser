@@ -1,0 +1,894 @@
+import React, { useEffect, useState } from 'react';
+import { useRouter } from 'next/router';
+
+// Define theme colors
+const theme = {
+  background: '#1a1a1a',
+  backgroundLight: '#2a2a2a',
+  backgroundDark: '#121212',
+  primary: '#8a4fff',
+  primaryLight: '#b280ff',
+  primaryDark: '#6930c3',
+  secondary: '#3a0ca3',
+  secondaryLight: '#4361ee',
+  accent: '#f72585',
+  text: '#f5f5f5',
+  textMuted: '#b3b3b3',
+};
+
+// Import data directly (either from environment variable at build time or fallback to fetch)
+const EMBEDDED_DATA = process.env.STATIC_DATA_PLACEHOLDER !== 'WILL_BE_REPLACED_AT_BUILD_TIME' 
+  ? JSON.parse(process.env.STATIC_DATA_PLACEHOLDER) 
+  : null;
+
+export default function Home() {
+  const router = useRouter();
+  const [modelData, setModelData] = useState({ models: [] });
+  const [loading, setLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(true);
+  const [filteredModels, setFilteredModels] = useState([]);
+  const [selectedModel, setSelectedModel] = useState(null);
+  
+  // Filter states
+  const [filterOptions, setFilterOptions] = useState({
+    releases: [],
+    subscriptions: [],
+    collections: [],
+    tags: []
+  });
+  
+  // Available filter options
+  const [availableFilters, setAvailableFilters] = useState({
+    releases: [],
+    subscriptions: [],
+    collections: [],
+    tags: []
+  });
+
+  useEffect(() => {
+    // If we have embedded data, use that directly
+    if (EMBEDDED_DATA) {
+      processModelData(EMBEDDED_DATA);
+      return;
+    }
+
+    // Otherwise fall back to fetching
+    fetch('./orynt3d-data.json')
+      .then(response => response.json())
+      .then(data => {
+        processModelData(data);
+      })
+      .catch(error => {
+        console.error('Error loading model data:', error);
+        setLoading(false);
+      });
+  }, []);
+
+  // Common function to process the model data regardless of source
+  const processModelData = (data) => {
+    setModelData(data);
+    
+    // Extract available filter options
+    const releases = new Set();
+    const subscriptions = new Set();
+    const collections = new Set();
+    const tags = new Set();
+    
+    data.models.forEach(model => {
+      if (model.release) releases.add(model.release);
+      if (model.subscription) subscriptions.add(model.subscription);
+      
+      // Add both directoryCollection and collections from the model
+      if (model.directoryCollection) collections.add(model.directoryCollection);
+      if (model.collections && Array.isArray(model.collections)) {
+        model.collections.forEach(collection => collections.add(collection));
+      }
+      
+      // Add all tags
+      if (model.tags && Array.isArray(model.tags)) {
+        model.tags.forEach(tag => tags.add(tag));
+      }
+    });
+    
+    setAvailableFilters({
+      releases: [...releases].sort(),
+      subscriptions: [...subscriptions].sort(),
+      collections: [...collections].sort(),
+      tags: [...tags].sort()
+    });
+    
+    setFilteredModels(data.models);
+    setLoading(false);
+  };
+
+  // Apply filters whenever filter options change
+  useEffect(() => {
+    if (modelData.models.length === 0) return;
+    
+    const filtered = modelData.models.filter(model => {
+      // Filter by releases
+      if (filterOptions.releases.length > 0 && 
+          !filterOptions.releases.includes(model.release)) {
+        return false;
+      }
+      
+      // Filter by subscriptions
+      if (filterOptions.subscriptions.length > 0 && 
+          !filterOptions.subscriptions.includes(model.subscription)) {
+        return false;
+      }
+      
+      // Filter by collections
+      if (filterOptions.collections.length > 0) {
+        const modelCollections = [];
+        if (model.directoryCollection) modelCollections.push(model.directoryCollection);
+        if (model.collections) modelCollections.push(...model.collections);
+        
+        // Check if the model has at least one of the selected collections
+        if (!filterOptions.collections.some(c => modelCollections.includes(c))) {
+          return false;
+        }
+      }
+      
+      // Filter by tags
+      if (filterOptions.tags.length > 0) {
+        // Model must have all selected tags
+        if (!model.tags || !filterOptions.tags.every(tag => model.tags.includes(tag))) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
+    
+    setFilteredModels(filtered);
+    
+    // Reset selected model if it's no longer in filtered list
+    if (selectedModel && !filtered.some(m => m.id === selectedModel.id)) {
+      setSelectedModel(null);
+    }
+  }, [filterOptions, modelData.models]);
+
+  // Toggle filter selection
+  const toggleFilter = (filterType, value) => {
+    setFilterOptions(prev => {
+      const currentValues = [...prev[filterType]];
+      const index = currentValues.indexOf(value);
+      
+      if (index === -1) {
+        // Add the value
+        return {
+          ...prev,
+          [filterType]: [...currentValues, value]
+        };
+      } else {
+        // Remove the value
+        currentValues.splice(index, 1);
+        return {
+          ...prev,
+          [filterType]: currentValues
+        };
+      }
+    });
+  };
+
+  // Clear all filters
+  const clearFilters = () => {
+    setFilterOptions({
+      releases: [],
+      subscriptions: [],
+      collections: [],
+      tags: []
+    });
+  };
+  
+  // Handler to select a model for detailed view
+  const handleModelSelect = (model) => {
+    setSelectedModel(model);
+  };
+  
+  // Navigate to next or previous model
+  const navigateModel = (direction) => {
+    if (!selectedModel || filteredModels.length <= 1) return;
+    
+    const currentIndex = filteredModels.findIndex(m => m.id === selectedModel.id);
+    if (currentIndex === -1) return;
+    
+    let nextIndex;
+    if (direction === 'next') {
+      nextIndex = (currentIndex + 1) % filteredModels.length;
+    } else {
+      nextIndex = (currentIndex - 1 + filteredModels.length) % filteredModels.length;
+    }
+    
+    setSelectedModel(filteredModels[nextIndex]);
+  };
+  
+  // Handle keyboard navigation
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (selectedModel) {
+        if (e.key === 'ArrowRight') {
+          navigateModel('next');
+        } else if (e.key === 'ArrowLeft') {
+          navigateModel('prev');
+        } else if (e.key === 'Escape') {
+          setSelectedModel(null);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedModel, filteredModels]);
+  
+  // Group models by collection for gallery view
+  const groupedModels = groupModelsByCollection(filteredModels);
+  
+  // CSS Styles
+  const styles = {
+    app: {
+      backgroundColor: theme.background,
+      color: theme.text,
+      minHeight: '100vh',
+      fontFamily: 'system-ui, -apple-system, sans-serif',
+    },
+    container: {
+      display: 'flex',
+      position: 'relative',
+    },
+    filtersPanel: {
+      width: showFilters ? '300px' : '50px',
+      backgroundColor: theme.backgroundLight,
+      padding: showFilters ? '20px' : '10px',
+      transition: 'width 0.3s ease',
+      height: 'calc(100vh - 60px)',
+      position: 'sticky',
+      top: '60px',
+      overflowY: 'auto',
+      borderRight: `1px solid ${theme.backgroundDark}`,
+    },
+    filterToggle: {
+      backgroundColor: 'transparent',
+      border: 'none',
+      color: theme.text,
+      fontSize: '20px',
+      cursor: 'pointer',
+      padding: '5px',
+      marginBottom: '15px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: showFilters ? 'flex-end' : 'center',
+      width: '100%',
+    },
+    filterSection: {
+      marginBottom: '25px',
+      display: showFilters ? 'block' : 'none',
+    },
+    sectionTitle: {
+      fontSize: '16px',
+      fontWeight: 'bold',
+      marginBottom: '10px',
+      color: theme.primaryLight,
+      borderBottom: `1px solid ${theme.primaryDark}`,
+      paddingBottom: '5px',
+    },
+    checkbox: {
+      marginRight: '8px',
+    },
+    checkboxLabel: {
+      display: 'flex',
+      alignItems: 'center',
+      marginBottom: '8px',
+      fontSize: '14px',
+      cursor: 'pointer',
+    },
+    tagCloud: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '8px',
+      marginTop: '10px',
+    },
+    tag: {
+      padding: '5px 10px',
+      borderRadius: '15px',
+      fontSize: '12px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+    },
+    content: {
+      flex: 1,
+      padding: '20px',
+      transition: 'margin-left 0.3s ease',
+    },
+    header: {
+      backgroundColor: theme.backgroundDark,
+      padding: '15px 20px',
+      position: 'sticky',
+      top: 0,
+      zIndex: 10,
+      borderBottom: `1px solid ${theme.backgroundLight}`,
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    heading: {
+      margin: 0,
+      fontSize: '24px',
+      fontWeight: 'bold',
+      color: theme.primaryLight,
+    },
+    statsText: {
+      margin: '5px 0 0 0',
+      fontSize: '14px',
+      color: theme.textMuted,
+    },
+    clearButton: {
+      backgroundColor: theme.primary,
+      color: theme.text,
+      border: 'none',
+      padding: '8px 15px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      transition: 'background-color 0.2s ease',
+      fontSize: '14px',
+    },
+    collectionsGrid: {
+      marginTop: '30px',
+    },
+    collectionTitle: {
+      fontSize: '22px',
+      fontWeight: 'bold',
+      marginBottom: '15px',
+      color: theme.text,
+      display: 'flex',
+      alignItems: 'center',
+    },
+    collectionTitleIcon: {
+      marginRight: '10px',
+      backgroundColor: theme.primary,
+      width: '20px',
+      height: '20px',
+      display: 'inline-block',
+      borderRadius: '4px',
+    },
+    modelsGrid: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
+      gap: '20px',
+      marginBottom: '40px',
+    },
+    modelCard: {
+      backgroundColor: theme.backgroundLight,
+      borderRadius: '8px',
+      overflow: 'hidden',
+      transition: 'transform 0.2s ease, box-shadow 0.2s ease',
+      cursor: 'pointer',
+      border: `1px solid ${theme.backgroundLight}`,
+    },
+    modelCardHover: {
+      transform: 'translateY(-5px)',
+      boxShadow: `0 5px 15px rgba(0,0,0,0.3)`,
+      border: `1px solid ${theme.primary}`,
+    },
+    modelImageContainer: {
+      height: '200px',
+      backgroundColor: theme.backgroundDark,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      overflow: 'hidden',
+    },
+    modelImage: {
+      maxWidth: '100%',
+      maxHeight: '100%',
+      objectFit: 'contain',
+    },
+    modelInfo: {
+      padding: '15px',
+    },
+    modelName: {
+      margin: '0 0 10px 0',
+      fontSize: '16px',
+      fontWeight: 'bold',
+    },
+    modelTags: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '5px',
+      margin: '10px 0',
+    },
+    modelTag: {
+      fontSize: '11px',
+      backgroundColor: theme.backgroundDark,
+      color: theme.textMuted,
+      borderRadius: '3px',
+      padding: '2px 6px',
+    },
+    modelMeta: {
+      fontSize: '12px',
+      color: theme.textMuted,
+      marginTop: '10px',
+    },
+    modelDetail: {
+      display: selectedModel ? 'flex' : 'none',
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0,0,0,0.85)',
+      zIndex: 100,
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexDirection: 'column',
+      padding: '40px',
+    },
+    modelDetailContent: {
+      backgroundColor: theme.backgroundLight,
+      width: '100%',
+      maxWidth: '1000px',
+      maxHeight: '90vh',
+      borderRadius: '10px',
+      overflow: 'hidden',
+      position: 'relative',
+      display: 'flex',
+      flexDirection: 'column',
+    },
+    detailClose: {
+      position: 'absolute',
+      top: '15px',
+      right: '15px',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      color: theme.text,
+      border: 'none',
+      borderRadius: '50%',
+      width: '40px',
+      height: '40px',
+      fontSize: '20px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      zIndex: 101,
+    },
+    detailNav: {
+      position: 'absolute',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      color: theme.text,
+      border: 'none',
+      borderRadius: '50%',
+      width: '50px',
+      height: '50px',
+      fontSize: '24px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'pointer',
+      zIndex: 101,
+    },
+    detailNavPrev: {
+      left: '15px',
+    },
+    detailNavNext: {
+      right: '15px',
+    },
+    detailImgContainer: {
+      height: '500px',
+      backgroundColor: theme.backgroundDark,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    detailImg: {
+      maxWidth: '100%',
+      maxHeight: '100%',
+      objectFit: 'contain',
+    },
+    detailInfo: {
+      padding: '20px',
+      overflowY: 'auto',
+    },
+    detailName: {
+      fontSize: '24px',
+      fontWeight: 'bold',
+      marginBottom: '10px',
+    },
+    detailDescription: {
+      marginBottom: '15px',
+      fontSize: '16px',
+    },
+    detailMeta: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '20px',
+      marginBottom: '20px',
+    },
+    detailMetaItem: {
+      fontSize: '14px',
+    },
+    detailMetaLabel: {
+      fontWeight: 'bold',
+      color: theme.primaryLight,
+    },
+    detailTags: {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '8px',
+      marginBottom: '20px',
+    },
+    detailTag: {
+      fontSize: '12px',
+      backgroundColor: theme.primaryDark,
+      color: theme.text,
+      borderRadius: '15px',
+      padding: '4px 10px',
+    },
+    detailAttributes: {
+      backgroundColor: theme.backgroundDark,
+      padding: '15px',
+      borderRadius: '5px',
+      marginTop: '15px',
+    },
+    detailAttributesTitle: {
+      fontSize: '16px',
+      fontWeight: 'bold',
+      marginBottom: '10px',
+      color: theme.primaryLight,
+    },
+    detailAttributesList: {
+      display: 'grid',
+      gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+      gap: '10px',
+    },
+    detailAttribute: {
+      fontSize: '14px',
+    },
+    footer: {
+      textAlign: 'center',
+      padding: '20px',
+      borderTop: `1px solid ${theme.backgroundLight}`,
+      color: theme.textMuted,
+      fontSize: '14px',
+    },
+    emptyState: {
+      textAlign: 'center',
+      padding: '50px',
+      color: theme.textMuted,
+    },
+    spinner: {
+      border: `4px solid ${theme.backgroundLight}`,
+      borderTop: `4px solid ${theme.primary}`,
+      borderRadius: '50%',
+      width: '40px',
+      height: '40px',
+      animation: 'spin 1s linear infinite',
+      margin: '100px auto',
+    },
+  };
+
+  // Add global styles for animations
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.textContent = `
+      @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+      }
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: ${theme.background};
+      }
+    `;
+    document.head.appendChild(style);
+    return () => document.head.removeChild(style);
+  }, []);
+  
+  return (
+    <div style={styles.app}>
+      <header style={styles.header}>
+        <div>
+          <h1 style={styles.heading}>3D Model Gallery</h1>
+          <p style={styles.statsText}>
+            {modelData.totalCount ? `Found ${filteredModels.length} of ${modelData.totalCount} models` : 'Loading models...'}
+          </p>
+        </div>
+        {Object.values(filterOptions).some(arr => arr.length > 0) && (
+          <button 
+            style={styles.clearButton}
+            onClick={clearFilters}
+          >
+            Clear All Filters
+          </button>
+        )}
+      </header>
+      
+      <div style={styles.container}>
+        {/* Filters Panel */}
+        <div style={styles.filtersPanel}>
+          <button 
+            style={styles.filterToggle} 
+            onClick={() => setShowFilters(!showFilters)}
+            title={showFilters ? "Collapse filters" : "Expand filters"}
+          >
+            {showFilters ? '◀' : '▶'}
+          </button>
+          
+          {/* Filter Sections */}
+          <div style={styles.filterSection}>
+            <div style={styles.sectionTitle}>Attributes</div>
+            
+            {/* Releases */}
+            <div style={{marginBottom: '15px'}}>
+              <div style={{fontSize: '14px', marginBottom: '5px', color: theme.textMuted}}>Releases:</div>
+              {availableFilters.releases.map(release => (
+                <label key={release} style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={filterOptions.releases.includes(release)}
+                    onChange={() => toggleFilter('releases', release)}
+                    style={styles.checkbox}
+                  />
+                  {release}
+                </label>
+              ))}
+            </div>
+            
+            {/* Subscriptions */}
+            <div style={{marginBottom: '15px'}}>
+              <div style={{fontSize: '14px', marginBottom: '5px', color: theme.textMuted}}>Subscriptions:</div>
+              {availableFilters.subscriptions.map(subscription => (
+                <label key={subscription} style={styles.checkboxLabel}>
+                  <input
+                    type="checkbox"
+                    checked={filterOptions.subscriptions.includes(subscription)}
+                    onChange={() => toggleFilter('subscriptions', subscription)}
+                    style={styles.checkbox}
+                  />
+                  {subscription}
+                </label>
+              ))}
+            </div>
+          </div>
+          
+          {/* Collections Section */}
+          <div style={styles.filterSection}>
+            <div style={styles.sectionTitle}>Collections</div>
+            {availableFilters.collections.map(collection => (
+              <label key={collection} style={styles.checkboxLabel}>
+                <input
+                  type="checkbox"
+                  checked={filterOptions.collections.includes(collection)}
+                  onChange={() => toggleFilter('collections', collection)}
+                  style={styles.checkbox}
+                />
+                {collection}
+              </label>
+            ))}
+          </div>
+          
+          {/* Tags Section */}
+          <div style={styles.filterSection}>
+            <div style={styles.sectionTitle}>Tags</div>
+            <div style={styles.tagCloud}>
+              {availableFilters.tags.map(tag => (
+                <div
+                  key={tag}
+                  style={{
+                    ...styles.tag,
+                    backgroundColor: filterOptions.tags.includes(tag) ? theme.primary : theme.backgroundDark,
+                    color: filterOptions.tags.includes(tag) ? theme.text : theme.textMuted,
+                  }}
+                  onClick={() => toggleFilter('tags', tag)}
+                >
+                  {tag}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        
+        {/* Main Content */}
+        <div style={styles.content}>
+          {loading ? (
+            <div style={styles.spinner}></div>
+          ) : filteredModels.length === 0 ? (
+            <div style={styles.emptyState}>
+              <h2>No models match your filter criteria</h2>
+              <p>Try adjusting your filters or <button onClick={clearFilters} style={{...styles.clearButton, marginTop: '10px'}}>Clear All Filters</button></p>
+            </div>
+          ) : (
+            <div style={styles.collectionsGrid}>
+              {Object.entries(groupedModels).map(([collection, models]) => (
+                <div key={collection}>
+                  <h2 style={styles.collectionTitle}>
+                    <span style={styles.collectionTitleIcon}></span>
+                    {collection}
+                  </h2>
+                  <div style={styles.modelsGrid}>
+                    {models.map(model => (
+                      <ModelCard 
+                        key={model.id} 
+                        model={model} 
+                        styles={styles}
+                        onClick={() => handleModelSelect(model)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <footer style={styles.footer}>
+            <p>Last updated: {modelData.lastUpdated ? new Date(modelData.lastUpdated).toLocaleString() : 'Unknown'}</p>
+          </footer>
+        </div>
+      </div>
+      
+      {/* Model Detail View */}
+      {selectedModel && (
+        <div style={styles.modelDetail}>
+          <div style={styles.modelDetailContent}>
+            <button 
+              style={styles.detailClose} 
+              onClick={() => setSelectedModel(null)}
+              title="Close"
+            >
+              ✕
+            </button>
+            
+            <button 
+              style={{...styles.detailNav, ...styles.detailNavPrev}} 
+              onClick={() => navigateModel('prev')}
+              title="Previous model"
+            >
+              ◀
+            </button>
+            
+            <button 
+              style={{...styles.detailNav, ...styles.detailNavNext}} 
+              onClick={() => navigateModel('next')}
+              title="Next model"
+            >
+              ▶
+            </button>
+            
+            <div style={styles.detailImgContainer}>
+              {selectedModel.image ? (
+                <img 
+                  src={selectedModel.image} 
+                  alt={selectedModel.name || 'Model image'} 
+                  style={styles.detailImg}
+                />
+              ) : (
+                <div>No image available</div>
+              )}
+            </div>
+            
+            <div style={styles.detailInfo}>
+              <h2 style={styles.detailName}>{selectedModel.name || 'Unnamed Model'}</h2>
+              
+              {selectedModel.notes && (
+                <p style={styles.detailDescription}>{selectedModel.notes}</p>
+              )}
+              
+              <div style={styles.detailMeta}>
+                {selectedModel.release && (
+                  <div style={styles.detailMetaItem}>
+                    <span style={styles.detailMetaLabel}>Release:</span> {selectedModel.release}
+                  </div>
+                )}
+                
+                {selectedModel.subscription && (
+                  <div style={styles.detailMetaItem}>
+                    <span style={styles.detailMetaLabel}>Subscription:</span> {selectedModel.subscription}
+                  </div>
+                )}
+                
+                {selectedModel.dateAdded && (
+                  <div style={styles.detailMetaItem}>
+                    <span style={styles.detailMetaLabel}>Added:</span> {new Date(selectedModel.dateAdded).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+              
+              {selectedModel.tags && selectedModel.tags.length > 0 && (
+                <div>
+                  <div style={styles.detailMetaLabel}>Tags:</div>
+                  <div style={styles.detailTags}>
+                    {selectedModel.tags.map(tag => (
+                      <span key={tag} style={styles.detailTag}>{tag}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
+              {selectedModel.attributes && selectedModel.attributes.length > 0 && (
+                <div style={styles.detailAttributes}>
+                  <div style={styles.detailAttributesTitle}>Attributes</div>
+                  <div style={styles.detailAttributesList}>
+                    {selectedModel.attributes.map((attr, idx) => (
+                      <div key={idx} style={styles.detailAttribute}>
+                        <span style={{fontWeight: 'bold'}}>{attr.key}:</span> {attr.value}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Model Card Component
+function ModelCard({ model, styles, onClick }) {
+  const [isHovered, setIsHovered] = useState(false);
+  
+  return (
+    <div 
+      style={{
+        ...styles.modelCard,
+        ...(isHovered ? styles.modelCardHover : {})
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+      onClick={onClick}
+    >
+      <div style={styles.modelImageContainer}>
+        {model.image ? (
+          <img 
+            src={model.image} 
+            alt={model.name || 'Model preview'} 
+            style={styles.modelImage} 
+          />
+        ) : (
+          <div>No image available</div>
+        )}
+      </div>
+      <div style={styles.modelInfo}>
+        <h3 style={styles.modelName}>{model.name || 'Unnamed Model'}</h3>
+        
+        {model.tags && model.tags.length > 0 && (
+          <div style={styles.modelTags}>
+            {model.tags.slice(0, 3).map(tag => (
+              <span key={tag} style={styles.modelTag}>{tag}</span>
+            ))}
+            {model.tags.length > 3 && (
+              <span style={styles.modelTag}>+{model.tags.length - 3} more</span>
+            )}
+          </div>
+        )}
+        
+        <div style={styles.modelMeta}>
+          {model.release && <p><strong>Release:</strong> {model.release}</p>}
+          {model.subscription && <p><strong>Subscription:</strong> {model.subscription}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Helper function to group models by collection
+function groupModelsByCollection(models) {
+  return models.reduce((groups, model) => {
+    // Try to use directoryCollection first, then fall back to the first collection in the collections array
+    let collectionName = model.directoryCollection || 'Uncategorized';
+    
+    if (!collectionName && model.collections && model.collections.length > 0) {
+      collectionName = model.collections[0];
+    }
+    
+    if (!groups[collectionName]) {
+      groups[collectionName] = [];
+    }
+    groups[collectionName].push(model);
+    return groups;
+  }, {});
+}

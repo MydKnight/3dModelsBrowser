@@ -1,0 +1,96 @@
+🚀 Starting the Next.js build process at 5/6/2025, 8:11:48 AM
+
+📋 Step 1: Checking for data file...
+   ✅ Data file already exists at C:\Users\shilo\OneDrive\Documents\Model Data Population Application\public\orynt3d-data.json
+   Found data file with 944 models
+
+🔍 Step 1b: Setting up incremental build cache...
+   Loaded build cache with 3452 cached models
+   🔍 Model "Brutal Orc   Base" is using a placeholder - will try to find a real image
+   🔍 Model "Bonus" is using a placeholder - will try to find a real image
+   🔍 Model "Enemies" is using a placeholder - will try to find a real image
+   🔍 Model "Environment" is using a placeholder - will try to find a real image
+   🔍 Model "Heroes" is using a placeholder - will try to find a real image
+   🔍 Model "Barghest" is using a placeholder - will try to find a real image
+   🔍 Model "Bugbear" is using a placeholder - will try to find a real image
+   🔍 Model "Dog Rider" is using a placeholder - will try to find a real image
+   🔍 Model "Goblin Lancer" is using a placeholder - will try to find a real image
+   🔍 Model "Goblin Soldier" is using a placeholder - will try to find a real image
+   🔍 Model "Goblin Swords" is using a placeholder - will try to find a real image
+   🔍 Model "Hobgoblin Ranger" is using a placeholder - will try to find a real image
+   🔍 Model "Hobgoblin Ranger" is using a placeholder - will try to find a real image
+   🔍 Model "Big Barricade" is using a placeholder - will try to find a real image
+   🔍 Model "Bonfire" is using a placeholder - will try to find a real image
+   🔍 Model "Dead Prisoner" is using a placeholder - will try to find a real image
+   🔍 Model "Flag" is using a placeholder - will try to find a real image
+   🔍 Model "Goblin Chest" is using a placeholder - will try to find a real image
+   🔍 Model "Pillar 1" is using a placeholder - will try to find a real image
+   🔍 Model "Pillar 2" is using a placeholder - will try to find a real image
+   🔍 Model "Pillar 3" is using a placeholder - will try to find a real image
+   🔍 Model "Skulls Pile" is using a placeholder - will try to find a real image
+   🔍 Model "Small Barricade" is using a placeholder - will try to find a real image
+   🔍 Model "Trapdoor" is using a placeholder - will try to find a real image
+   🔍 Model "Cormah Shazan" is using a placeholder - will try to find a real image
+   🔍 Model "Jhonny Trinity" is using a placeholder - will try to find a real image
+   🔍 Model "Sunathear Caex" is using a placeholder - will try to find a real image
+   🔍 Model "Hatch Supported" is using a placeholder - will try to find a real image
+   🔍 Model "Black Bear" is using a placeholder - will try to find a real image
+   🔍 Model "Dire Weasel Rider" is using a placeholder - will try to find a real image
+   🔍 Model "Flying Kobold" is using a placeholder - will try to find a real image
+   🔍 Model "Giant Lizard" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Arbalist" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Beast Wrangler" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Miner" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Shaman" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Sorcerer" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Spearman" is using a placeholder - will try to find a real image
+   🔍 Model "Kobold Trapmaker" is using a placeholder - will try to find a real image
+   🔍 Model "Lizardfolk" is using a placeholder - will try to find a real image
+   🔍 Model "Lizard Rider" is using a placeholder - will try to find a real image
+   🔍 Model "Monitor Lizard" is using a placeholder - will try to find a real image
+   🔍 Model "Red Dragon Wyrmling" is using a placeholder - will try to find a real image
+   🔍 Model "Troglodyte" is using a placeholder - will try to find a real image
+   🔍 Model "Bridge" is using a placeholder - will try to find a real image
+   🔍 Model "Cage Trap" is using a placeholder - will try to find a real image
+   🔍 Model "Cave Entrance" is using a placeholder - will try to find a real image
+   🔍 Model "Dead Fall" is using a placeholder - will try to find a real image
+   🔍 Model "Fire Totem" is using a placeholder - will try to find a real image
+   🔍 Model "Gold Mine" is using a placeholder - will try to find a real image
+   🔍 Model "Kobolds Nest" is using a placeholder - will try to find a real image
+   🔍 Model "Murder Hole" is using a placeholder - will try to find a real image
+   🔍 Model "Rolling Stone" is using a placeholder - will try to find a real image
+   🔍 Model "Trap" is using a placeholder - will try to find a real image
+   🔍 Model "Treasure Trolley" is using a placeholder - will try to find a real image
+   🔍 Model "Alexandra Uthgarde" is using a placeholder - will try to find a real image
+   🔍 Model "Brocc "Badger" Garrick" is using a placeholder - will try to find a real image
+   🔍 Model "Mirsudirth, Champion of Volcanoes" is using a placeholder - will try to find a real image
+   🔍 Model "Captive Gnome" is using a placeholder - will try to find a real image
+   🔍 Model "Gnome Barbecue" is using a placeholder - will try to find a real image
+   🔍 Model "Npcs" is using a placeholder - will try to find a real image
+   Found 61 new/modified models and 883 unchanged models
+
+🖼️ Step 2: Preparing images directory...
+   Images directory already exists
+
+📸 Step 3: Processing model images...
+   Processing 61 models for images...
+   ✓ Processed 61 models: copied 0 images, used 0 placeholders, had 0 errors in 0.00 seconds
+   ✓ Updated 0 image paths in the data file
+
+🏗️ Step 4: Building the Next.js site...
+   Executing: npx next build
+
+⚠️ Warning: Could not build Next.js site automatically: Command failed with code 1
+   You can build manually by running 'next build' in your terminal.
+   The data and image files have been prepared successfully.
+
+🔄 Step 5: Embedding model data into Next.js config...
+   📂 Reading Next.js config...
+   🔄 Embedding model data into Next.js config...
+   💾 Writing updated Next.js config...
+   ✅ Successfully embedded model data into Next.js config
+   ✓ Saved build cache with 3452 models
+
+✅ Build complete! Total time: 1.31 seconds
+📊 Run "npm run start" to start the server or "npm run export" to generate static files.
+📝 Build log saved to: C:\Users\shilo\OneDrive\Documents\Model Data Population Application\build-log.txt
