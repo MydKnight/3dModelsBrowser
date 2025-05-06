@@ -19,9 +19,19 @@ const theme = {
 // Import data directly (either from environment variable at build time or fallback to fetch)
 const EMBEDDED_DATA = (() => {
   try {
-    if (process.env.STATIC_DATA_PLACEHOLDER && 
-        process.env.STATIC_DATA_PLACEHOLDER !== 'WILL_BE_REPLACED_AT_BUILD_TIME') {
-      return JSON.parse(process.env.STATIC_DATA_PLACEHOLDER);
+    if (process.env.STATIC_DATA_PLACEHOLDER) {
+      if (process.env.STATIC_DATA_PLACEHOLDER !== 'WILL_BE_REPLACED_AT_BUILD_TIME') {
+        // The data might already be a valid JSON string or it might be the result of Buffer.from().toString()
+        // Try parsing it directly first
+        try {
+          return JSON.parse(process.env.STATIC_DATA_PLACEHOLDER);
+        } catch (parseError) {
+          // If direct parsing fails, log the error and check if it's a string that can be trimmed and parsed
+          console.error('Initial JSON parse error:', parseError.message);
+          const trimmed = process.env.STATIC_DATA_PLACEHOLDER.trim();
+          return JSON.parse(trimmed);
+        }
+      }
     }
     return null;
   } catch (error) {

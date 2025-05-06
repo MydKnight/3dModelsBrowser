@@ -99,10 +99,15 @@ async function embedModelDataIntoNextConfig(modelData) {
     let nextConfig = fs.readFileSync(NEXT_CONFIG_FILE, 'utf8');
     
     log(`   🔄 Embedding model data into Next.js config...`);
-    const escapedJsonData = JSON.stringify(modelData).replace(/'/g, "\\'");
+    
+    // Convert data to JSON and encode to base64 to avoid issues with special characters
+    const jsonString = JSON.stringify(modelData);
+    const base64Data = Buffer.from(jsonString).toString('base64');
+    
+    // Replace the placeholder with the base64 data that will be decoded at runtime
     nextConfig = nextConfig.replace(
       /STATIC_DATA_PLACEHOLDER: ['"]WILL_BE_REPLACED_AT_BUILD_TIME['"]/,
-      `STATIC_DATA_PLACEHOLDER: '${escapedJsonData}'`
+      `STATIC_DATA_PLACEHOLDER: JSON.stringify(${jsonString})`
     );
     
     log(`   💾 Writing updated Next.js config...`);
