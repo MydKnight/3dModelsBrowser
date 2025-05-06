@@ -313,7 +313,8 @@ export default function Home() {
       ...(isMobile && {
         position: 'fixed',
         left: showFilters ? 0 : '-100%',
-        width: showFilters ? '100%' : '50px',
+        width: showFilters ? '100vw' : '50px', // Use viewport width instead of percentage
+        boxSizing: 'border-box', // Ensure padding is included in width calculation
       }),
     },
     filterToggle: {
