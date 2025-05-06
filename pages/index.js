@@ -47,12 +47,13 @@ export default function Home() {
   const [showFilters, setShowFilters] = useState(true);
   const [filteredModels, setFilteredModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState(null);
+  const [groupBy, setGroupBy] = useState('none'); // Options: 'none', 'subscription', 'release'
+  const [copied, setCopied] = useState(false); // Track copy to clipboard status
   
   // Filter states
   const [filterOptions, setFilterOptions] = useState({
     releases: [],
     subscriptions: [],
-    collections: [],
     tags: []
   });
   
@@ -60,7 +61,6 @@ export default function Home() {
   const [availableFilters, setAvailableFilters] = useState({
     releases: [],
     subscriptions: [],
-    collections: [],
     tags: []
   });
 
@@ -76,12 +76,21 @@ export default function Home() {
       .then(response => response.json())
       .then(data => {
         processModelData(data);
+        
+        // Check for model ID in URL query parameters for deep linking
+        if (router.query.modelId) {
+          const modelId = router.query.modelId;
+          const model = data.models.find(m => m.id === modelId);
+          if (model) {
+            setSelectedModel(model);
+          }
+        }
       })
       .catch(error => {
         console.error('Error loading model data:', error);
         setLoading(false);
       });
-  }, []);
+  }, [router.query]);
 
   // Common function to process the model data regardless of source
   const processModelData = (data) => {
@@ -90,18 +99,11 @@ export default function Home() {
     // Extract available filter options
     const releases = new Set();
     const subscriptions = new Set();
-    const collections = new Set();
     const tags = new Set();
     
     data.models.forEach(model => {
       if (model.release) releases.add(model.release);
       if (model.subscription) subscriptions.add(model.subscription);
-      
-      // Add both directoryCollection and collections from the model
-      if (model.directoryCollection) collections.add(model.directoryCollection);
-      if (model.collections && Array.isArray(model.collections)) {
-        model.collections.forEach(collection => collections.add(collection));
-      }
       
       // Add all tags
       if (model.tags && Array.isArray(model.tags)) {
@@ -112,7 +114,6 @@ export default function Home() {
     setAvailableFilters({
       releases: [...releases].sort(),
       subscriptions: [...subscriptions].sort(),
-      collections: [...collections].sort(),
       tags: [...tags].sort()
     });
     
@@ -137,18 +138,6 @@ export default function Home() {
         return false;
       }
       
-      // Filter by collections
-      if (filterOptions.collections.length > 0) {
-        const modelCollections = [];
-        if (model.directoryCollection) modelCollections.push(model.directoryCollection);
-        if (model.collections) modelCollections.push(...model.collections);
-        
-        // Check if the model has at least one of the selected collections
-        if (!filterOptions.collections.some(c => modelCollections.includes(c))) {
-          return false;
-        }
-      }
-      
       // Filter by tags
       if (filterOptions.tags.length > 0) {
         // Model must have all selected tags
@@ -167,6 +156,23 @@ export default function Home() {
       setSelectedModel(null);
     }
   }, [filterOptions, modelData.models]);
+
+  // Group models by the selected property
+  const groupModels = (models, groupByProperty) => {
+    if (groupByProperty === 'none') {
+      return { 'All Models': models };
+    }
+    
+    return models.reduce((groups, model) => {
+      const key = model[groupByProperty] || 'Uncategorized';
+      
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(model);
+      return groups;
+    }, {});
+  };
 
   // Toggle filter selection
   const toggleFilter = (filterType, value) => {
@@ -196,7 +202,6 @@ export default function Home() {
     setFilterOptions({
       releases: [],
       subscriptions: [],
-      collections: [],
       tags: []
     });
   };
@@ -223,6 +228,26 @@ export default function Home() {
     setSelectedModel(filteredModels[nextIndex]);
   };
   
+  // Copy link to clipboard function
+  const copyModelLink = () => {
+    if (!selectedModel) return;
+    
+    // Create a URL with the model ID as a query parameter
+    const url = `${window.location.origin}${window.location.pathname}?modelId=${selectedModel.id}`;
+    
+    // Copy to clipboard
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        // Show copy confirmation
+        setCopied(true);
+        // Hide after 3 seconds
+        setTimeout(() => setCopied(false), 3000);
+      })
+      .catch(err => {
+        console.error('Failed to copy link: ', err);
+      });
+  };
+
   // Handle keyboard navigation
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -240,9 +265,6 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedModel, filteredModels]);
-  
-  // Group models by collection for gallery view
-  const groupedModels = groupModelsByCollection(filteredModels);
   
   // CSS Styles
   const styles = {
@@ -331,6 +353,23 @@ export default function Home() {
       justifyContent: 'space-between',
       alignItems: 'center',
     },
+    headerLeft: {
+      flex: 1,
+    },
+    headerRight: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '15px',
+    },
+    viewSelect: {
+      backgroundColor: theme.backgroundLight,
+      color: theme.text,
+      border: `1px solid ${theme.primaryDark}`,
+      borderRadius: '4px',
+      padding: '6px 10px',
+      fontSize: '14px',
+      cursor: 'pointer',
+    },
     heading: {
       margin: 0,
       fontSize: '24px',
@@ -351,25 +390,6 @@ export default function Home() {
       cursor: 'pointer',
       transition: 'background-color 0.2s ease',
       fontSize: '14px',
-    },
-    collectionsGrid: {
-      marginTop: '30px',
-    },
-    collectionTitle: {
-      fontSize: '22px',
-      fontWeight: 'bold',
-      marginBottom: '15px',
-      color: theme.text,
-      display: 'flex',
-      alignItems: 'center',
-    },
-    collectionTitleIcon: {
-      marginRight: '10px',
-      backgroundColor: theme.primary,
-      width: '20px',
-      height: '20px',
-      display: 'inline-block',
-      borderRadius: '4px',
     },
     modelsGrid: {
       display: 'grid',
@@ -565,6 +585,32 @@ export default function Home() {
     detailAttribute: {
       fontSize: '14px',
     },
+    copyLinkButton: {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px',
+      backgroundColor: theme.primary,
+      color: theme.text,
+      border: 'none',
+      padding: '8px 15px',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      fontSize: '14px',
+      marginTop: '15px',
+    },
+    copyConfirmation: {
+      position: 'absolute',
+      right: '15px',
+      bottom: '15px',
+      backgroundColor: theme.primaryDark,
+      color: theme.text,
+      padding: '8px 15px',
+      borderRadius: '4px',
+      fontSize: '14px',
+      opacity: copied ? 1 : 0,
+      transform: copied ? 'translateY(0)' : 'translateY(10px)',
+      transition: 'opacity 0.3s ease, transform 0.3s ease',
+    },
     footer: {
       textAlign: 'center',
       padding: '20px',
@@ -609,20 +655,31 @@ export default function Home() {
   return (
     <div style={styles.app}>
       <header style={styles.header}>
-        <div>
+        <div style={styles.headerLeft}>
           <h1 style={styles.heading}>3D Model Gallery</h1>
           <p style={styles.statsText}>
             {modelData.totalCount ? `Found ${filteredModels.length} of ${modelData.totalCount} models` : 'Loading models...'}
           </p>
         </div>
-        {Object.values(filterOptions).some(arr => arr.length > 0) && (
-          <button 
-            style={styles.clearButton}
-            onClick={clearFilters}
+        <div style={styles.headerRight}>
+          <select 
+            style={styles.viewSelect}
+            value={groupBy}
+            onChange={(e) => setGroupBy(e.target.value)}
           >
-            Clear All Filters
-          </button>
-        )}
+            <option value="none">No Grouping</option>
+            <option value="subscription">Group by Subscription</option>
+            <option value="release">Group by Release</option>
+          </select>
+          {Object.values(filterOptions).some(arr => arr.length > 0) && (
+            <button 
+              style={styles.clearButton}
+              onClick={clearFilters}
+            >
+              Clear All Filters
+            </button>
+          )}
+        </div>
       </header>
       
       <div style={styles.container}>
@@ -673,22 +730,6 @@ export default function Home() {
             </div>
           </div>
           
-          {/* Collections Section */}
-          <div style={styles.filterSection}>
-            <div style={styles.sectionTitle}>Collections</div>
-            {availableFilters.collections.map(collection => (
-              <label key={collection} style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={filterOptions.collections.includes(collection)}
-                  onChange={() => toggleFilter('collections', collection)}
-                  style={styles.checkbox}
-                />
-                {collection}
-              </label>
-            ))}
-          </div>
-          
           {/* Tags Section */}
           <div style={styles.filterSection}>
             <div style={styles.sectionTitle}>Tags</div>
@@ -720,13 +761,10 @@ export default function Home() {
               <p>Try adjusting your filters or <button onClick={clearFilters} style={{...styles.clearButton, marginTop: '10px'}}>Clear All Filters</button></p>
             </div>
           ) : (
-            <div style={styles.collectionsGrid}>
-              {Object.entries(groupedModels).map(([collection, models]) => (
-                <div key={collection}>
-                  <h2 style={styles.collectionTitle}>
-                    <span style={styles.collectionTitleIcon}></span>
-                    {collection}
-                  </h2>
+            <div className="models-container">
+              {Object.entries(groupModels(filteredModels, groupBy)).map(([group, models]) => (
+                <div key={group} style={{marginBottom: '40px'}}>
+                  <h2 style={styles.sectionTitle}>{group}</h2>
                   <div style={styles.modelsGrid}>
                     {models.map(model => (
                       <ModelCard 
@@ -838,6 +876,16 @@ export default function Home() {
                   </div>
                 </div>
               )}
+              
+              <button 
+                style={styles.copyLinkButton} 
+                onClick={copyModelLink}
+              >
+                Copy Link
+              </button>
+              <div style={styles.copyConfirmation}>
+                Link copied!
+              </div>
             </div>
           </div>
         </div>
@@ -892,22 +940,4 @@ function ModelCard({ model, styles, onClick }) {
       </div>
     </div>
   );
-}
-
-// Helper function to group models by collection
-function groupModelsByCollection(models) {
-  return models.reduce((groups, model) => {
-    // Try to use directoryCollection first, then fall back to the first collection in the collections array
-    let collectionName = model.directoryCollection || 'Uncategorized';
-    
-    if (!collectionName && model.collections && model.collections.length > 0) {
-      collectionName = model.collections[0];
-    }
-    
-    if (!groups[collectionName]) {
-      groups[collectionName] = [];
-    }
-    groups[collectionName].push(model);
-    return groups;
-  }, {});
 }
