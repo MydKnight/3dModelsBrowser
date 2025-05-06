@@ -17,9 +17,18 @@ const theme = {
 };
 
 // Import data directly (either from environment variable at build time or fallback to fetch)
-const EMBEDDED_DATA = process.env.STATIC_DATA_PLACEHOLDER !== 'WILL_BE_REPLACED_AT_BUILD_TIME' 
-  ? JSON.parse(process.env.STATIC_DATA_PLACEHOLDER) 
-  : null;
+const EMBEDDED_DATA = (() => {
+  try {
+    if (process.env.STATIC_DATA_PLACEHOLDER && 
+        process.env.STATIC_DATA_PLACEHOLDER !== 'WILL_BE_REPLACED_AT_BUILD_TIME') {
+      return JSON.parse(process.env.STATIC_DATA_PLACEHOLDER);
+    }
+    return null;
+  } catch (error) {
+    console.error('Error parsing embedded data:', error);
+    return null;
+  }
+})();
 
 export default function Home() {
   const router = useRouter();

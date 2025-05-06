@@ -7,7 +7,8 @@ const nextConfig = {
   },
   // Add environment variables to be accessible in the browser
   env: {
-    MODEL_DATA: process.env.MODEL_DATA || '{}'
+    MODEL_DATA: process.env.MODEL_DATA || '{}',
+    STATIC_DATA_PLACEHOLDER: 'WILL_BE_REPLACED_AT_BUILD_TIME'
   }
 }
 
