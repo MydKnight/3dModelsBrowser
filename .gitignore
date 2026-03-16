@@ -25,3 +25,12 @@ yarn-error.log*
 # Misc
 .DS_Store
 *.pem
+
+# Generated data files — sourced from NAS/Orynt3D, not committed
+# Run scripts/extract-model-data.js locally to regenerate
+public/orynt3d-data.json
+public/images/
+
+# Build artifacts
+build-log.txt
+.build-cache.json

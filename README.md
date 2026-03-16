@@ -2,6 +2,23 @@
 
 A web application for browsing and viewing 3D model collections. This application allows users to browse through a library of 3D models with preview images and metadata.
 
+## Current Status
+
+**Dormant — deployed on Netlify (may have gone stale), functional as of last commit May 2025.**
+
+| Component | Status |
+|---|---|
+| Next.js gallery (browse, filter, copy link) | ✅ Working |
+| Mobile-responsive layout | ✅ Working |
+| Static export + Netlify deployment | ✅ Configured |
+| `extract-model-data.js` (NAS → JSON) | ✅ Working |
+| `build-nextjs-app.js` (data embed + build pipeline) | ✅ Working |
+| Tests | ✗ None |
+
+**This is a personal tool.** The repo contains only the app code — no model data or preview images are committed (NAS-sourced, generated locally at build time). To deploy your own instance, set up your own Netlify site pointed at your fork.
+
+**Pipeline context:** Downstream end of a 3-stage pipeline: `orynt3d-pipeline` → Orynt3D desktop app → this app.
+
 ## Features
 
 - Browse through a comprehensive collection of 3D models
