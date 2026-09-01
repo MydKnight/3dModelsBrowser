@@ -13,7 +13,7 @@ The Next.js implementation works but does not scale to the real collection size 
 | Next.js gallery (browse, filter, copy link) | Working -- being replaced |
 | Mobile-responsive layout | Working -- grid does not scale to 4k models |
 | Static export + Netlify deployment | Configured (deploy may be stale) |
-| `extract-model-data.cjs` (NAS -> JSON) | Working -- renamed from `.js` for ESM compatibility; gaining thumbnail + recency logic for v2.0 |
+| NAS -> JSON scan | `scripts/scan-nas.mjs` (replaced the broken `extract-model-data.cjs`); resolves name/subscription/release from `config.orynt3d` + folder structure |
 | Astro v2.0 | Spec drafted, no code yet |
 | Tests | None -- TDD stands up with the rewrite |
 

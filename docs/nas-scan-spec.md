@@ -192,13 +192,13 @@ edit: read `data/raw/models.json` and each entry's `sourceImage` directly
 
 ### What gets retired now
 
-- `scripts/extract-model-data.cjs` -- deleted.
-- `scripts/build-nextjs-app.cjs`, `scripts/deploy.cjs`, `pages/`,
-  `next.config.js`, Next deps -- these still go at **step 7** as planned, but
-  note that `npm run dev:legacy` / `build:legacy` **stop working now** (they
-  read `public/orynt3d-data.json`, which nothing regenerates after this). The
-  legacy Next app is already superseded by the Astro scaffold; losing it early
-  is accepted.
+- `scripts/extract-model-data.cjs` -- **deleted**.
+- `scripts/deploy.cjs` -- **deleted** (Next.js deploy orchestration; called the
+  now-deleted extract script, zero remaining value).
+- `scripts/build-nextjs-app.cjs`, `pages/`, `next.config.js`, Next deps -- still
+  go at **step 7**. `npm run build:legacy` still runs against the committed
+  `public/orynt3d-data.json` (stale but present); it just can't be refreshed
+  any more. The legacy Next app is superseded by the Astro scaffold.
 - `public/orynt3d-data.json` -- stops being the working file. Left in git for
   now (deleted with the `public/images` cleanup at step 7) so the old snapshot
   stays diffable during the migration.
@@ -225,18 +225,23 @@ once this is Locked.
 
 ## Build order (replaces step 2 in astro-rewrite-spec.md)
 
-1. `tests/fixtures/nas/` -- fixture tree covering the observed shapes.
+1. `tests/fixtures/build-nas-fixture.mjs` -- temp NAS tree covering every
+   observed shape. **Done.**
 2. `scripts/lib/model-resolve.mjs` -- tests first, then implementation.
-3. `scripts/scan-nas.mjs` -- walk + fs + recency, calling model-resolve.
-   Verify against a NAS subset (`--limit`, or `ORYNT3D_DIR` pointed at one
-   subscription), then a full run; inspect `data/raw/models.json`.
-4. Adjust `scripts/make-thumbnails.mjs` to read `data/raw/models.json` /
-   `sourceImage`. Full thumbnail generation run (this is the big one --
-   ~4k models, ~500 MB WebP).
-5. `.gitignore` `data/raw/`; `git rm` `scripts/extract-model-data.cjs` +
-   `scripts/lib/thumbnail-paths.cjs`'s legacy branch (or keep it dead-simple).
-6. Update `package.json` `data` script, docs, spec sync.
-7. Commit. Step 2 done -> resume astro-rewrite-spec.md step 3.
+   **Done** (36 unit tests, 100% lines / 94% branches).
+3. `scripts/scan-nas.mjs` -- `scanTree()` walk + fs + recency, calling
+   model-resolve; `main()` wraps env/file I/O. **Done** (13-case integration
+   test against the fixture). Still to do: verify against the real NAS
+   (`ORYNT3D_DIR` at one subscription, then full) and inspect
+   `data/raw/models.json`.
+4. `scripts/make-thumbnails.mjs` -- reads `data/raw/models.json` / `sourceImage`.
+   **Done** (`thumbnail-paths.cjs` trimmed to dest-path helpers). Still to do:
+   full thumbnail generation run (~4k models, ~500 MB WebP).
+5. `.gitignore data/raw/`; `git rm scripts/extract-model-data.cjs`,
+   `scripts/deploy.cjs`. **Done.**
+6. `package.json` `data` script -> scan-nas; docs + spec sync. **Done.**
+7. Commit the code. Then run the real NAS verification (steps 3-4 tails) and
+   commit the snapshot -> step 2 done -> resume astro-rewrite-spec.md step 3.
 
 ## Resolved questions (2026-09-01)
 

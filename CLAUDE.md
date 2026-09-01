@@ -43,16 +43,16 @@ src/
     filter-index.json     # COMMITTED lean per-model records for the island (step 3)
     details.json          # COMMITTED full per-model metadata for detail pages (step 3)
 scripts/
-  scan-nas.mjs            # walks NAS config.orynt3d -> data/raw/models.json (step 2; see docs/nas-scan-spec.md)
-  make-thumbnails.mjs     # sharp -> public/thumbnails/<id>.webp (400px) + public/detail/<id>.webp (900px)
+  scan-nas.mjs            # walks NAS config.orynt3d -> data/raw/models.json (see docs/nas-scan-spec.md)
+  make-thumbnails.mjs     # sharp: data/raw/models.json -> public/thumbnails|detail/<id>.webp (400/900px)
   build-filter-index.mjs  # data/raw/models.json -> src/data/*.json  (step 3, no NAS)
   lib/
-    recency.cjs           # addedTs / firstSeenTs helpers (D6a) -- DONE
-    model-resolve.mjs     # name/subscription/release/tag/image resolution (step 2)
-  extract-model-data.cjs  # LEGACY -- broken vs current NAS, deleted at step 2
+    recency.cjs           # addedTs / firstSeenTs helpers (D6a)
+    model-resolve.mjs     # name/subscription/release/tag/image resolution
+    thumbnail-paths.cjs   # dest-path helpers for make-thumbnails
   build-nextjs-app.cjs    # LEGACY Next.js build -- deleted at step 7
-  deploy.cjs              # LEGACY -- deleted at step 7
 data/raw/                 # GITIGNORED working artefacts (models.json)
+tests/fixtures/           # build-nas-fixture.mjs -- temp NAS tree for scan tests
 public/
   thumbnails/  detail/    # COMMITTED WebP renditions
   images/                 # LEGACY PNGs, git rm --cached at step 7

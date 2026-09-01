@@ -33,8 +33,12 @@ yarn-error.log*
 .DS_Store
 *.pem
 
-# Generated data files — sourced from NAS/Orynt3D, not committed
-# Run scripts/extract-model-data.cjs locally to regenerate
+# Working artefacts from the NAS scan -- not committed (spec D7 / nas-scan-spec.md)
+# `npm run data` regenerates these locally from the NAS
+data/raw/
+
+# Legacy Next.js generated data (file still tracked from before .gitignore;
+# git rm --cached at build-order step 7)
 public/orynt3d-data.json
 public/images/
 
