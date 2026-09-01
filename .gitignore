@@ -37,6 +37,12 @@ yarn-error.log*
 # `npm run data` regenerates these locally from the NAS
 data/raw/
 
+# Generated client snapshot -- committed only once the real NAS scan has run
+# (until then it's built from scripts/dev-bootstrap-raw.mjs for local dev).
+# filter-index.example.json IS committed as the shape doc.
+src/data/filter-index.json
+src/data/details.json
+
 # Legacy Next.js generated data (file still tracked from before .gitignore;
 # git rm --cached at build-order step 7)
 public/orynt3d-data.json

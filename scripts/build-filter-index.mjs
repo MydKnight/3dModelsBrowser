@@ -13,9 +13,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const RAW_FILE = path.join(__dirname, '../data/raw/models.json');
+const DEFAULT_RAW = path.join(__dirname, '../data/raw/models.json');
 const THUMBS_DIR = path.join(__dirname, '../public/thumbnails');
 const OUT_DIR = path.join(__dirname, '../src/data');
+
+function argValue(flag) {
+  const i = process.argv.indexOf(flag);
+  return i !== -1 && process.argv[i + 1] ? process.argv[i + 1] : undefined;
+}
 
 const recencyKey = (m) => m.firstSeenTs ?? m.addedTs ?? 0;
 
@@ -88,12 +93,13 @@ export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbC
 
 export function main() {
   const skipThumbCheck = process.argv.includes('--no-thumb-check');
+  const rawFile = argValue('--raw') ? path.resolve(argValue('--raw')) : DEFAULT_RAW;
 
-  if (!fs.existsSync(RAW_FILE)) {
-    console.error(`❌ ${RAW_FILE} not found. Run scan-nas.mjs first.`);
+  if (!fs.existsSync(rawFile)) {
+    console.error(`❌ ${rawFile} not found. Run scan-nas.mjs first.`);
     process.exit(1);
   }
-  const { models: rawModels } = JSON.parse(fs.readFileSync(RAW_FILE, 'utf8'));
+  const { models: rawModels } = JSON.parse(fs.readFileSync(rawFile, 'utf8'));
 
   let result;
   try {
