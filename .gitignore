@@ -1,9 +1,16 @@
 # Node.js dependencies
 node_modules/
 
-# Next.js build output
+# Next.js build output (legacy -- removed in build-order step 7)
 .next/
 out/
+
+# Astro build output + local cache
+dist/
+.astro/
+
+# Vitest coverage report
+coverage/
 
 # Production build
 build/

@@ -1,22 +1,37 @@
 {
-  "name": "model-data-population-application",
-  "version": "1.0.0",
-  "main": "index.js",
+  "name": "3d-models-browser",
+  "version": "2.0.0-dev",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "next dev",
-    "build": "node scripts/build-nextjs-app.js && next build",
-    "start": "next start",
-    "lint": "next lint"
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "data": "node scripts/extract-model-data.js && node scripts/build-filter-index.mjs",
+    "dev:legacy": "next dev",
+    "build:legacy": "node scripts/build-nextjs-app.js && next build"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Searchable gallery for a personal 3D model collection, sourced from Orynt3D via orynt3d-pipeline.",
   "dependencies": {
-    "child_process": "^1.0.2",
-    "fs": "^0.0.1-security",
+    "@astrojs/preact": "^6.0.5",
+    "@preact/signals": "^2.11.1",
+    "@tanstack/virtual-core": "^3.17.8",
+    "astro": "^7.2.10",
+    "preact": "^10.29.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/preact": "^3.2.4",
+    "happy-dom": "^20.12.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11",
     "next": "^15.3.1",
-    "path": "^0.12.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   }
