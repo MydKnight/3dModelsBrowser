@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "data": "node scripts/extract-model-data.cjs && node scripts/build-filter-index.mjs",
+    "data": "node scripts/extract-model-data.cjs && node scripts/make-thumbnails.mjs && node scripts/build-filter-index.mjs",
     "dev:legacy": "next dev",
     "build:legacy": "node scripts/build-nextjs-app.cjs && next build"
   },
@@ -23,16 +23,17 @@
     "@preact/signals": "^2.11.1",
     "@tanstack/virtual-core": "^3.17.8",
     "astro": "^7.2.10",
-    "preact": "^10.29.8"
+    "preact": "^10.29.8",
+    "sharp": "^0.35.4"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/preact": "^3.2.4",
     "happy-dom": "^20.12.0",
-    "typescript": "^7.0.2",
-    "vitest": "^4.1.11",
     "next": "^15.3.1",
     "react": "^19.1.0",
-    "react-dom": "^19.1.0"
+    "react-dom": "^19.1.0",
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.11"
   }
 }

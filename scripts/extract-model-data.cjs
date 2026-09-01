@@ -4,6 +4,7 @@
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
+const { computeAddedTs, mergeFirstSeenTs } = require('./lib/recency.cjs');
 
 /**
  * This script crawls the orynt3d directory for model data (config.orynt3d files)
@@ -31,6 +32,9 @@ const releaseConfigs = new Map();
 
 // Store existing model data for image path preservation
 const existingModels = new Map();
+
+// Store existing per-model recency data (spec D6a) so firstSeenTs survives runs
+const existingRecency = new Map();
 
 // Main function
 async function mainExtractModelData() {
@@ -111,7 +115,9 @@ async function mainExtractModelData() {
 }
 
 /**
- * Load existing data file to preserve web-friendly image paths
+ * Load existing data file to preserve web-friendly image paths and each
+ * model's firstSeenTs (spec D6a -- so "newest first" ordering is stable
+ * across runs instead of resetting every scan).
  */
 function loadExistingDataFile() {
   if (fs.existsSync(OUTPUT_DATA_FILE)) {
@@ -121,6 +127,9 @@ function loadExistingDataFile() {
         for (const model of existingData.models) {
           if (model.id && model.image) {
             existingModels.set(model.id, model.image);
+          }
+          if (model.id && typeof model.firstSeenTs === 'number') {
+            existingRecency.set(model.id, { firstSeenTs: model.firstSeenTs });
           }
         }
         console.log(`📂 Loaded ${existingModels.size} existing models from ${OUTPUT_DATA_FILE}`);
@@ -353,7 +362,20 @@ function processModelConfig(modelConfig, configPath, releaseConfigs) {
   
   // Generate a stable ID for this model
   const modelId = generateStableId(modelConfig.modelmeta.name || modelName, configPath);
-  
+
+  // Recency signal (spec D6a): addedTs is a retroactive "when it hit the NAS"
+  // proxy recomputed every run from filesystem stats; firstSeenTs is stamped
+  // once and preserved across runs via existingRecency, which is what makes
+  // "newest first" (spec D4/O3) stable instead of resetting on every scan.
+  let dirStats;
+  try {
+    dirStats = fs.statSync(modelDir);
+  } catch (error) {
+    console.error(`  ⚠️ Could not stat ${modelDir} for recency data: ${error.message}`);
+  }
+  const addedTs = computeAddedTs(dirStats);
+  const firstSeenTs = mergeFirstSeenTs(modelId, existingRecency);
+
   // Start with basic model data from the model config
   const modelData = {
     id: modelId,
@@ -364,7 +386,11 @@ function processModelConfig(modelConfig, configPath, releaseConfigs) {
     attributes: [...(modelConfig.modelmeta.attributes || [])],
     sourcePath: configPath,
     relativeSourcePath: relativePath,
-    dateAdded: new Date().toISOString()
+    addedTs,
+    firstSeenTs,
+    // dateAdded is for display only (spec D6a) -- do not sort/order by it directly,
+    // sort by firstSeenTs (build-filter-index.mjs does this in step 3).
+    dateAdded: new Date(firstSeenTs).toISOString()
   };
   
   // Add directory-based collection if not specified in config
