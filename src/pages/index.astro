@@ -3,6 +3,7 @@
 // filter-index.json is produced by `npm run data` (scan-nas -> build-filter-index)
 // and committed. Locally, scripts/dev-bootstrap-raw.mjs generates it from the
 // legacy snapshot until the real NAS scan has run.
+import Base from '../layouts/Base.astro';
 import GalleryIsland from '../components/GalleryIsland.tsx';
 import type { FilterIndex } from '../lib/filter-engine';
 import filterIndex from '../data/filter-index.json';
@@ -10,40 +11,30 @@ import filterIndex from '../data/filter-index.json';
 const index = filterIndex as FilterIndex;
 ---
 
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>3D Model Gallery</title>
-    <style is:global>
-      :root { color-scheme: light dark; }
-      * { box-sizing: border-box; }
-      body { margin: 0; font: 15px/1.4 system-ui, sans-serif; }
-      .gallery { display: grid; grid-template-columns: 280px 1fr; min-height: 100vh; }
-      .filters { padding: 16px; border-right: 1px solid #8883; overflow-y: auto; height: 100vh; position: sticky; top: 0; }
-      .filters input[type='search'] { width: 100%; padding: 6px; }
-      .filters fieldset { border: 1px solid #8883; margin: 12px 0; padding: 8px; }
-      .filters label { display: block; }
-      .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; }
-      .tag[aria-pressed='true'] { outline: 2px solid currentColor; }
-      .tag:disabled { opacity: 0.35; }
-      .count { opacity: 0.6; font-size: 0.85em; }
-      .mode-toggle button[aria-pressed='true'] { font-weight: 700; text-decoration: underline; }
-      .results { display: flex; flex-direction: column; height: 100vh; }
-      .result-count { margin: 8px 16px; }
-      .scroller { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
-      .card { display: block; text-decoration: none; color: inherit; }
-      .card img { width: 100%; height: 240px; object-fit: contain; background: #8881; border-radius: 6px; }
-      .card-name { display: block; font-size: 0.9em; margin-top: 4px; }
-      @media (max-width: 700px) {
-        .gallery { grid-template-columns: 1fr; }
-        .filters { position: static; height: auto; border-right: 0; border-bottom: 1px solid #8883; }
-        .results { height: auto; }
-        .scroller { overflow: visible; }
-      }
-    </style>
-  </head>
-  <body>
-    <GalleryIsland index={index} client:load />
-  </body>
-</html>
+<Base title="3D Model Gallery">
+  <style is:global>
+    .gallery { display: grid; grid-template-columns: 280px 1fr; }
+    .filters { padding: 16px; border-right: 1px solid var(--edge); overflow-y: auto; height: calc(100vh - 42px); position: sticky; top: 0; }
+    .filters input[type='search'] { width: 100%; padding: 6px; }
+    .filters fieldset { border: 1px solid var(--edge); margin: 12px 0; padding: 8px; }
+    .filters label { display: block; }
+    .tag-cloud { display: flex; flex-wrap: wrap; gap: 6px; }
+    .tag[aria-pressed='true'] { outline: 2px solid currentColor; }
+    .tag:disabled { opacity: 0.35; }
+    .count { opacity: 0.6; font-size: 0.85em; }
+    .mode-toggle button[aria-pressed='true'] { font-weight: 700; text-decoration: underline; }
+    .results { display: flex; flex-direction: column; height: calc(100vh - 42px); }
+    .result-count { margin: 8px 16px; }
+    .scroller { flex: 1; overflow-y: auto; padding: 0 16px 16px; }
+    .card { display: block; text-decoration: none; }
+    .card img { width: 100%; height: 240px; object-fit: contain; background: #8881; border-radius: 6px; }
+    .card-name { display: block; font-size: 0.9em; margin-top: 4px; }
+    @media (max-width: 700px) {
+      .gallery { grid-template-columns: 1fr; }
+      .filters { position: static; height: auto; border-right: 0; border-bottom: 1px solid var(--edge); }
+      .results { height: auto; }
+      .scroller { overflow: visible; }
+    }
+  </style>
+  <GalleryIsland index={index} client:load transition:persist transition:name="gallery" />
+</Base>

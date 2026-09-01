@@ -1,10 +1,11 @@
 [build]
   command = "npm run build"
-  publish = "out"
+  publish = "dist"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "22"
 
-# Removing the Next.js plugin since we're using static export
-# [[plugins]]
-#  package = "@netlify/plugin-nextjs"
+# `npm run build` is `astro build` only -- it reads the committed
+# src/data/*.json + public/thumbnails|detail snapshot and never contacts the
+# NAS. Refreshing the snapshot (`npm run data`) is a local step; commit its
+# output. See docs/astro-rewrite-spec.md D7.

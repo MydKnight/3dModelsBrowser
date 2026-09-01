@@ -10,9 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "data": "node scripts/scan-nas.mjs && node scripts/make-thumbnails.mjs && node scripts/build-filter-index.mjs",
-    "dev:legacy": "next dev",
-    "build:legacy": "node scripts/build-nextjs-app.cjs && next build"
+    "data": "node scripts/scan-nas.mjs && node scripts/make-thumbnails.mjs && node scripts/build-filter-index.mjs"
   },
   "keywords": [],
   "author": "",
@@ -31,9 +29,6 @@
     "@testing-library/preact": "^3.2.4",
     "@vitest/coverage-v8": "^4.1.11",
     "happy-dom": "^20.12.0",
-    "next": "^15.3.1",
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0",
     "typescript": "^7.0.2",
     "vitest": "^4.1.11"
   }
