@@ -183,51 +183,32 @@ describe('resolveTags', () => {
 });
 
 describe('pickSourceImage', () => {
-  it('prefers a file whose name contains "preview" (case-insensitive)', () => {
-    const images = [
-      { name: 'render_01.jpg', size: 900000 },
-      { name: 'Hero_Preview.png', size: 100000 },
-    ];
-    expect(pickSourceImage(images)).toBe('Hero_Preview.png');
+  it('prefers a name hint (preview/hero/render/cover), case-insensitive', () => {
+    expect(pickSourceImage(['z_final.jpg', 'Hero_Preview.png'])).toBe('Hero_Preview.png');
+    expect(pickSourceImage(['a.png', 'StoneBreaker_Render_03.jpg'])).toBe(
+      'StoneBreaker_Render_03.jpg'
+    );
   });
 
-  it('prefers the largest png when no preview/hero hint', () => {
-    const images = [
-      { name: 'a.png', size: 100 },
-      { name: 'b.png', size: 5000 },
-      { name: 'c.jpg', size: 999999 },
-    ];
-    expect(pickSourceImage(images)).toBe('b.png');
+  it('within the hinted tier, the alphabetically-first name wins (deterministic)', () => {
+    expect(pickSourceImage(['render_02.jpg', 'render_01.jpg'])).toBe('render_01.jpg');
   });
 
-  it('falls back to the largest image of any type when there is no png', () => {
-    const images = [
-      { name: 'a.jpg', size: 100 },
-      { name: 'b.jpeg', size: 5000 },
-    ];
-    expect(pickSourceImage(images)).toBe('b.jpeg');
+  it('prefers a png when no name hint', () => {
+    expect(pickSourceImage(['c.jpg', 'b.png', 'a.gif'])).toBe('b.png');
   });
 
-  it('picks the largest among multiple preview-hinted images', () => {
-    const images = [
-      { name: 'preview_a.png', size: 100 },
-      { name: 'preview_b.png', size: 9000 },
-    ];
-    expect(pickSourceImage(images)).toBe('preview_b.png');
+  it('falls back to the alphabetically-first image of any type when no png', () => {
+    expect(pickSourceImage(['b.jpeg', 'a.jpg'])).toBe('a.jpg');
   });
 
   it('returns null when there are no images', () => {
     expect(pickSourceImage([])).toBeNull();
+    expect(pickSourceImage(['model.stl', 'notes.txt'])).toBeNull();
   });
 
   it('ignores an extensionless file', () => {
-    expect(pickSourceImage([{ name: 'README', size: 10 }, { name: 'x.png', size: 5 }])).toBe('x.png');
-  });
-
-  it('ignores non-image files', () => {
-    expect(pickSourceImage([{ name: 'model.stl', size: 999 }, { name: 'thumb.webp', size: 1 }])).toBe(
-      'thumb.webp'
-    );
+    expect(pickSourceImage(['README', 'x.png'])).toBe('x.png');
   });
 });
 

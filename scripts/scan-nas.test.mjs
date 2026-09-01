@@ -26,7 +26,7 @@ describe('scanTree', () => {
     expect(m.subscription).toBe('Rescale'); // nearest attr "rescale miniatures" -> canonical
     expect(m.release).toBe('Molten Hearts');
     expect(m.tags).toEqual(['cr14', 'dragon', 'huge']);
-    expect(m.sourceImage).toMatch(/render_02\.jpg$/); // largest image
+    expect(m.sourceImage).toMatch(/render_01\.jpg$/); // "render" hint, alphabetically first
   });
 
   it('resolves a desktop-style Loot model: name from folder, no release config', () => {

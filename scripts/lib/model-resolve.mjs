@@ -149,23 +149,23 @@ function ext(name) {
   return i === -1 ? '' : name.slice(i).toLowerCase();
 }
 
+const IMAGE_HINT = /preview|hero|render|cover/i;
+
 /**
- * @param {{name: string, size: number}[]} images - files in the model dir
+ * Pick the cover image for a model from the filenames in its folder. Name-based
+ * only (no fs.stat) -- keeps the NAS scan fast. Deterministic: within each tier,
+ * the alphabetically-first name wins.
+ * @param {string[]} filenames
  * @returns {string|null} chosen filename
  */
-export function pickSourceImage(images) {
-  const imgs = images.filter((f) => IMAGE_EXTS.has(ext(f.name)));
+export function pickSourceImage(filenames) {
+  const imgs = filenames.filter((n) => IMAGE_EXTS.has(ext(n))).sort();
   if (imgs.length === 0) return null;
-
-  const hinted = imgs
-    .filter((f) => /preview|hero/i.test(f.name))
-    .sort((a, b) => b.size - a.size);
-  if (hinted.length > 0) return hinted[0].name;
-
-  const pngs = imgs.filter((f) => ext(f.name) === '.png').sort((a, b) => b.size - a.size);
-  if (pngs.length > 0) return pngs[0].name;
-
-  return imgs.slice().sort((a, b) => b.size - a.size)[0].name;
+  return (
+    imgs.find((n) => IMAGE_HINT.test(n)) ??
+    imgs.find((n) => ext(n) === '.png') ??
+    imgs[0]
+  );
 }
 
 /**

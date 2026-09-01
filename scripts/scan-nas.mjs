@@ -28,7 +28,8 @@ const CONFIG_NAME = 'config.orynt3d';
 const MESH_EXTS = new Set(['.stl', '.3mf', '.obj', '.chitubox', '.lys']);
 const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
 
-function readConfig(dir) {
+function readConfig(dir, hasConfigFile = true) {
+  if (!hasConfigFile) return null;
   try {
     return JSON.parse(fs.readFileSync(path.join(dir, CONFIG_NAME), 'utf8'));
   } catch {
@@ -44,12 +45,13 @@ const configTags = (c) => c?.scancfg?.tags?.include ?? [];
  * @param {Map<string,{firstSeenTs:number}>} [prior] - for firstSeenTs preservation
  * @returns {{ models: object[], stats: {dirs:number,models:number,noImage:number,unknownSub:number} }}
  */
-export function scanTree(root, prior = new Map()) {
+export function scanTree(root, prior = new Map(), { onProgress } = {}) {
   const stats = { dirs: 0, models: 0, noImage: 0, unknownSub: 0 };
   const models = [];
 
   const walk = (absDir, relSegments, ancestorAttrs, ancestorTagLists) => {
     stats.dirs++;
+    if (onProgress && stats.dirs % 100 === 0) onProgress(stats);
     let entries;
     try {
       entries = fs.readdirSync(absDir, { withFileTypes: true });
@@ -60,30 +62,21 @@ export function scanTree(root, prior = new Map()) {
 
     const subDirs = entries.filter((e) => e.isDirectory());
     const files = entries.filter((e) => e.isFile());
-    const config = readConfig(absDir);
+    const config = readConfig(absDir, files.some((f) => f.name === CONFIG_NAME));
 
     const attrsHere = config ? [...configAttrs(config), ...ancestorAttrs] : ancestorAttrs;
     const tagListsHere = config ? [...ancestorTagLists, configTags(config)] : ancestorTagLists;
 
     const meshFiles = files.filter((f) => MESH_EXTS.has(path.extname(f.name).toLowerCase()));
-    const imageFiles = files
-      .filter((f) => IMAGE_EXTS.has(path.extname(f.name).toLowerCase()))
-      .map((f) => {
-        let size = 0;
-        try {
-          size = fs.statSync(path.join(absDir, f.name)).size;
-        } catch {
-          /* ignore */
-        }
-        return { name: f.name, size };
-      });
+    const imageNames = files.map((f) => f.name);
 
+    const hasImage = imageNames.some((n) => IMAGE_EXTS.has(path.extname(n).toLowerCase()));
     const isModelConfig = config?.scancfg?.modelMode === 0;
     const isFallbackModel =
-      !config && subDirs.length === 0 && meshFiles.length > 0 && imageFiles.length > 0;
+      !config && subDirs.length === 0 && meshFiles.length > 0 && hasImage;
 
     if (isModelConfig || isFallbackModel) {
-      emit(absDir, relSegments, config, attrsHere, tagListsHere, imageFiles);
+      emit(absDir, relSegments, config, attrsHere, tagListsHere, imageNames);
       return; // models are leaves
     }
     for (const d of subDirs) {
@@ -91,7 +84,7 @@ export function scanTree(root, prior = new Map()) {
     }
   };
 
-  const emit = (absDir, relSegments, config, attrs, tagLists, imageFiles) => {
+  const emit = (absDir, relSegments, config, attrs, tagLists, imageNames) => {
     const relPath = relSegments.join('/');
     const folderName = relSegments[relSegments.length - 1];
     const name = resolveName({ configName: config?.modelmeta?.name, folderName });
@@ -101,7 +94,7 @@ export function scanTree(root, prior = new Map()) {
     const id = makeId(name, relPath);
     if (!sub.known) stats.unknownSub++;
 
-    const chosen = pickSourceImage(imageFiles);
+    const chosen = pickSourceImage(imageNames);
     const sourceImage = chosen ? path.join(absDir, chosen) : null;
     if (!sourceImage) stats.noImage++;
 
@@ -155,27 +148,35 @@ function loadPriorRecency(outFile) {
 
 export function main() {
   const root = process.env.ORYNT3D_DIR || DEFAULT_ROOT;
+  const outArg = process.argv.indexOf('--out');
+  const outFile = outArg !== -1 && process.argv[outArg + 1] ? process.argv[outArg + 1] : OUT_FILE;
+
   if (!fs.existsSync(root)) {
     console.error(`❌ Scan root not found: ${root}\n   Set ORYNT3D_DIR or connect to the NAS.`);
     process.exit(1);
   }
   console.log(`🔍 Scanning ${root} ...`);
   const start = Date.now();
-  const prior = loadPriorRecency(OUT_FILE);
-  const { models, stats } = scanTree(root, prior);
+  const prior = loadPriorRecency(outFile);
+  const { models, stats } = scanTree(root, prior, {
+    onProgress: (s) => {
+      const secs = ((Date.now() - start) / 1000).toFixed(0);
+      process.stdout.write(`\r  ${s.dirs} dirs, ${s.models} models  [${secs}s]   `);
+    },
+  });
 
-  fs.mkdirSync(path.dirname(OUT_FILE), { recursive: true });
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
   fs.writeFileSync(
-    OUT_FILE,
+    outFile,
     JSON.stringify({ scannedAt: new Date().toISOString(), root, models }, null, 2)
   );
 
   const secs = ((Date.now() - start) / 1000).toFixed(1);
   console.log(
-    `✅ ${stats.models} models from ${stats.dirs} dirs in ${secs}s ` +
+    `\n✅ ${stats.models} models from ${stats.dirs} dirs in ${secs}s ` +
       `(${stats.noImage} without an image, ${stats.unknownSub} with an unrecognised subscription)`
   );
-  console.log(`💾 ${OUT_FILE}`);
+  console.log(`💾 ${outFile}`);
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
