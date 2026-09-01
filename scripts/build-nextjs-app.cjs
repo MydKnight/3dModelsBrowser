@@ -1,4 +1,4 @@
-// File: scripts/build-nextjs-app.js
+// File: scripts/build-nextjs-app.cjs
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -228,7 +228,7 @@ async function ensureDataFileExists() {
         {
           id: 'default-3d-model',
           name: 'Default 3D Model',
-          description: 'This is a default 3D model entry. To add real models, run the extract-model-data.js script.',
+          description: 'This is a default 3D model entry. To add real models, run the extract-model-data.cjs script.',
           collection: 'Default',
           dateAdded: new Date().toISOString(),
           attributes: {

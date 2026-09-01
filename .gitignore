@@ -34,7 +34,7 @@ yarn-error.log*
 *.pem
 
 # Generated data files — sourced from NAS/Orynt3D, not committed
-# Run scripts/extract-model-data.js locally to regenerate
+# Run scripts/extract-model-data.cjs locally to regenerate
 public/orynt3d-data.json
 public/images/
 

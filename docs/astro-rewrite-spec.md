@@ -4,6 +4,14 @@
 **Target:** v2.0
 **Date:** 2026-09-01 (open questions O1-O6 resolved same day)
 
+**Amendment (build-order step 1, 2026-09-01):** `package.json` now has
+`"type": "module"` so new `.mjs`/`.ts` files (e.g. `build-filter-index.mjs`,
+`filter-engine.ts`) are ESM by default. The pre-existing CommonJS scripts
+(`extract-model-data.js`, `build-nextjs-app.js`, `deploy.js`) broke under that
+setting (`require is not defined in ES module scope`) and were renamed to
+`.cjs` to fix it -- content unchanged otherwise. All references below use the
+`.cjs` names.
+
 ## Problem
 
 The current app is a Next.js 15 static export (`output: 'export'`) with a single
@@ -11,7 +19,7 @@ The current app is a Next.js 15 static export (`output: 'export'`) with a single
 
 - loads the **entire** model dataset (every field, full `sourcePath`, `notes`,
   `attributes`, `dateAdded`) into the browser as one base64 blob injected through
-  a `STATIC_DATA_PLACEHOLDER` env var that `build-nextjs-app.js` string-replaces
+  a `STATIC_DATA_PLACEHOLDER` env var that `build-nextjs-app.cjs` string-replaces
   into `next.config.js`,
 - renders **every** model card and `<img>` at once (no pagination, no
   virtualization),
@@ -219,7 +227,7 @@ like "dragon" narrowing to ~87 renders fine either way.
 
 ### D6a -- Extract-step changes for recency (O3)
 
-`extract-model-data.js` currently writes `dateAdded: new Date().toISOString()` for
+`extract-model-data.cjs` currently writes `dateAdded: new Date().toISOString()` for
 every model on every scan and `loadExistingDataFile()` only preserves `image`, so
 there is no usable recency signal. Changes:
 
@@ -262,7 +270,8 @@ the PNGs are *tracked* despite being `.gitignore`d (tracked wins).
 
 ```
 NAS (\\...\3D Files)
-  -> scripts/extract-model-data.js        (unchanged: scans config.orynt3d)
+  -> scripts/extract-model-data.cjs       (scans config.orynt3d; renamed from
+                                            .js for ESM compat, D6a recency added)
        writes  data/raw/orynt3d-data.json  (gitignored working file)
   -> scripts/build-filter-index.mjs        (NEW)
        reads  data/raw/orynt3d-data.json
@@ -298,7 +307,7 @@ NAS (\\...\3D Files)
   that order (ordinal 0 = newest); a snapshot's ordinals are fixed for that
   snapshot (a data refresh reassigns them, which is fine -- URL filter state is
   by tag/sub/release value, not ordinal);
-- carry `id` forward unchanged from `extract-model-data.js`
+- carry `id` forward unchanged from `extract-model-data.cjs`
   (`generateStableId`, md5-based) -- detail-page routes depend on it;
 - dictionary-encode `tags` (sorted), `subs`, `rels`; drop any tag/sub/rel that no
   model references;
@@ -328,7 +337,7 @@ tests**). Per the global standard, test-first for every new pure-logic module.
 | filter island | component | toggle tag -> grid + counts update; AND/OR mode switch; sort control (Newest/Name/Release) reorders result slice; clear-all; sub/release + tag combined; URL read on mount / write on change; zero-result state |
 | `src/lib/grid-layout.ts` | unit | columns-per-row from container width at breakpoints; row-index <-> item-index mapping for the virtualizer; overscan bounds at list start/end; `scrollTop` save/restore round-trip |
 | `src/pages/m/[id].astro` `getStaticPaths` | unit | every `filter-index.json` id maps to a `details.json` entry; build fails loudly (not silently) on a missing id |
-| `extract-model-data.js` -- recency merge (D6a) | unit | `firstSeenTs` set on first sight of an id, preserved unchanged after; `addedTs` from birthtime with mtime fallback. Rest of the file (NAS scan/walk) stays exempt. |
+| `extract-model-data.cjs` -- recency merge (D6a) | unit | `firstSeenTs` set on first sight of an id, preserved unchanged after; `addedTs` from birthtime with mtime fallback. Rest of the file (NAS scan/walk) stays exempt. |
 | Astro pages / config | -- | exempt (glue) |
 
 **Proposed coverage threshold** (to be locked in CLAUDE.md `## Test Coverage
@@ -340,10 +349,10 @@ Standard` when this spec goes Locked):
 - `src/lib/grid-layout.ts`: **90%** (pure logic, same bar as the filter engine)
 - `src/pages/m/[id].astro` `getStaticPaths`: smoke-tested (id/details mapping,
   loud failure on gap) -- no numeric target, it's routing glue
-- `scripts/extract-model-data.js`: **only** the new recency-merge logic is
+- `scripts/extract-model-data.cjs`: **only** the new recency-merge logic is
   in-scope (target 85%); the legacy NAS scan/walk/image-search stays exempt
-- exempt: `scripts/build-nextjs-app.js` (deleted anyway), `astro.config.mjs`,
-  `*.astro` pages, `deploy.js`
+- exempt: `scripts/build-nextjs-app.cjs` (deleted anyway), `astro.config.mjs`,
+  `*.astro` pages, `deploy.cjs` (deleted anyway)
 
 ## Build order
 
@@ -352,7 +361,7 @@ Each step is test-first where it has a test row above. A step is not done until
 
 1. **Scaffold** -- new Astro project in place, Preact integration, Vitest wired,
    `.gitignore` updated. Old Next.js files stay until step 7.
-2. **`extract` step: thumbnails + recency** -- extend `extract-model-data.js` (or
+2. **`extract` step: thumbnails + recency** -- extend `extract-model-data.cjs` (or
    add `scripts/make-thumbnails.mjs`) to emit both WebP renditions (`~400px` ->
    `public/thumbnails/`, `~900px` -> `public/detail/`) via `sharp`, and add the
    D6a recency changes (`addedTs` from fs birthtime, preserved `firstSeenTs`).
@@ -373,8 +382,9 @@ Each step is test-first where it has a test row above. A step is not done until
 7. **Detail pages `/m/[id]`** -- test for `getStaticPaths`'s id/details mapping
    first, then the page (900px image, full metadata, copy-link), static
    about/header/footer, `<ClientRouter />` + `transition:persist` on the island.
-   Then **delete** `pages/`, `next.config.js`, `scripts/build-nextjs-app.js`,
-   `.build-cache.json`, Next deps, and `git rm --cached -r public/images`.
+   Then **delete** `pages/`, `next.config.js`, `scripts/build-nextjs-app.cjs`,
+   `scripts/deploy.cjs`, `.build-cache.json`, Next deps, and
+   `git rm --cached -r public/images`.
 8. **Netlify** -- point branch deploy at `feat/astro-rewrite`, confirm build
    succeeds with no NAS, smoke-test preview URL.
 9. `/code-review`, squash, merge to `main`, delete branch, repoint production if

@@ -10,9 +10,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "data": "node scripts/extract-model-data.js && node scripts/build-filter-index.mjs",
+    "data": "node scripts/extract-model-data.cjs && node scripts/build-filter-index.mjs",
     "dev:legacy": "next dev",
-    "build:legacy": "node scripts/build-nextjs-app.js && next build"
+    "build:legacy": "node scripts/build-nextjs-app.cjs && next build"
   },
   "keywords": [],
   "author": "",

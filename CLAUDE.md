@@ -28,7 +28,7 @@ Raw subscription downloads
   Orynt3D desktop app (scans, previews, writes config.orynt3d per model)
         ↓
   3dModelsBrowser ← this project
-  (extract-model-data.js reads config.orynt3d files → orynt3d-data.json → Next.js gallery → Netlify)
+  (extract-model-data.cjs reads config.orynt3d files → orynt3d-data.json → Next.js gallery → Netlify)
 ```
 
 ## Architecture
@@ -37,9 +37,10 @@ Raw subscription downloads
 pages/
   index.js              # Main gallery page — browse, filter, copy link
 scripts/
-  extract-model-data.js # Scans NAS for config.orynt3d files → public/orynt3d-data.json
-  build-nextjs-app.js   # Copies preview images from NAS, embeds data as env var, runs next build
-  deploy.js             # Deployment helper
+  extract-model-data.cjs # Scans NAS for config.orynt3d files → public/orynt3d-data.json (legacy CommonJS; NAS-side changes land here for v2.0 too, see spec D6a)
+  build-nextjs-app.cjs   # Legacy Next.js build pipeline -- deleted in build-order step 7
+  deploy.cjs              # Legacy Next.js deployment helper -- deleted in build-order step 7
+  build-filter-index.mjs # v2.0: raw data -> committed filter-index.json + details.json (build-order step 3, not yet written)
 public/
   orynt3d-data.json     # GITIGNORED — generated locally, not committed
   images/               # GITIGNORED — copied from NAS at build time
@@ -58,12 +59,12 @@ next.config.js          # Next.js config
 
 The build is not a standard `next build` — it's a two-step process:
 
-1. `scripts/extract-model-data.js` — scans `\\NAS\data\3D Files` for `config.orynt3d` files, copies preview images to `public/images/`, writes `public/orynt3d-data.json`
-2. `scripts/build-nextjs-app.js` — reads `orynt3d-data.json`, base64-encodes it into `STATIC_DATA_PLACEHOLDER` env var, then runs `next build`
+1. `scripts/extract-model-data.cjs` — scans `\\NAS\data\3D Files` for `config.orynt3d` files, copies preview images to `public/images/`, writes `public/orynt3d-data.json`
+2. `scripts/build-nextjs-app.cjs` — reads `orynt3d-data.json`, base64-encodes it into `STATIC_DATA_PLACEHOLDER` env var, then runs `next build`
 
 The `index.js` page reads `STATIC_DATA_PLACEHOLDER` at build time so the data is fully embedded in the static output — no runtime API calls needed.
 
-**Important:** `npm run build` invokes `build-nextjs-app.js`, which expects the NAS to be reachable. Running this without NAS access will fail at the data step.
+**Important (legacy):** `npm run build:legacy` invokes `build-nextjs-app.cjs`, which expects the NAS to be reachable. Running this without NAS access will fail at the data step. **In v2.0, `npm run build` is `astro build` only and never touches the NAS** -- see spec D7.
 
 ## Current State
 
@@ -73,7 +74,7 @@ The `index.js` page reads `STATIC_DATA_PLACEHOLDER` at build time so the data is
 ## Known Gaps
 
 - No tests (TDD stands up as part of the v2.0 rewrite -- see spec Testing section)
-- No `.env.example` (NAS path is hardcoded in `extract-model-data.js` as `ORYNT3D_DIR` env var -- should be documented)
+- No `.env.example` (NAS path is hardcoded in `extract-model-data.cjs` as `ORYNT3D_DIR` env var -- should be documented)
 - `package.json` name is `model-data-population-application` -- rename to `3d-models-browser` during the rewrite scaffold
 - No committed example of the data shape -- v2.0 adds `src/data/filter-index.example.json` (spec Data contract section)
 - Old Next.js build fails hard without NAS -- v2.0's committed-snapshot pipeline (spec D7) fixes this
@@ -101,10 +102,10 @@ Defined 2026-09-01 with the v2.0 spec (`docs/astro-rewrite-spec.md` -> Testing).
 |---|---|
 | `src/lib/**` (filter engine, grid layout, helpers) | 90% lines/branches |
 | `scripts/build-filter-index.mjs` | 85% |
-| `scripts/extract-model-data.js` -- **only** the new recency-merge logic | 85% |
+| `scripts/extract-model-data.cjs` -- **only** the new recency-merge logic | 85% |
 | Island components | 70% |
 | `src/pages/m/[id].astro` `getStaticPaths` | smoke-tested, no numeric target (routing glue) |
-| Exempt | legacy NAS scan/walk in `extract-model-data.js`, `scripts/build-nextjs-app.js` (deleted), `astro.config.mjs`, other `*.astro` pages, `deploy.js` |
+| Exempt | legacy NAS scan/walk in `extract-model-data.cjs`, `scripts/build-nextjs-app.cjs` (deleted), `astro.config.mjs`, other `*.astro` pages, `deploy.cjs` (deleted) |
 
 ## Out of Spec
 
@@ -116,20 +117,23 @@ Defined 2026-09-01 with the v2.0 spec (`docs/astro-rewrite-spec.md` -> Testing).
 
 Netlify is connected to the GitHub repo via pull hook — pushing to `main` triggers a Netlify build automatically. No manual deploy step needed. The Netlify build environment needs `ORYNT3D_DIR` set if the build script reads it from env; otherwise the hardcoded NAS path in the script will be used (which only works on the local machine, not Netlify).
 
-> Note: The current build likely fails on Netlify because the NAS is not reachable from Netlify's build environment. The `build-nextjs-app.js` script may need a "CI mode" that uses a pre-committed data snapshot instead of trying to reach the NAS. This is a known gap to address when reviving.
+> Note (legacy, resolved by v2.0): the Next.js build fails on Netlify because the NAS is not reachable from Netlify's build environment. v2.0's committed-snapshot pipeline (spec D7) fixes this -- `npm run build` never touches the NAS.
 
 ## Development
 
 ```bash
 npm install
 
-# Generate data from NAS (requires NAS access)
+# v2.0 (Astro) -- no NAS needed unless refreshing the data snapshot
+npm run dev            # astro dev
+npm run build           # astro build -- reads the committed snapshot only
+npm run test             # vitest run
+
+# Refresh the data snapshot (requires NAS access; commit the result -- spec D7)
 $env:ORYNT3D_DIR = "\\192.168.254.200\data\3D Files"
-node scripts/extract-model-data.js
+npm run data              # extract-model-data.cjs && build-filter-index.mjs
 
-# Build
-npm run build
-
-# Dev server (uses whatever orynt3d-data.json is in public/)
-npm run dev
+# Legacy Next.js app (until build-order step 7 removes it)
+npm run dev:legacy
+npm run build:legacy      # requires NAS access
 ```

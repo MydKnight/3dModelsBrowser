@@ -15,7 +15,7 @@ async function deploy() {
     if (process.env.ORYNT3D_DIR) {
       console.log(`\n📂 Step 1: Extracting model data from ${process.env.ORYNT3D_DIR}`);
       try {
-        execSync('node scripts/extract-model-data.js', { stdio: 'inherit' });
+        execSync('node scripts/extract-model-data.cjs', { stdio: 'inherit' });
         console.log('✅ Model data extraction complete');
       } catch (error) {
         console.error('⚠️ Model data extraction had issues but we\'ll continue with build');
@@ -28,7 +28,7 @@ async function deploy() {
     // Step 2: Run the Next.js app build script
     console.log('\n🔨 Step 2: Processing images and preparing app data');
     try {
-      execSync('node scripts/build-nextjs-app.js', { stdio: 'inherit' });
+      execSync('node scripts/build-nextjs-app.cjs', { stdio: 'inherit' });
       console.log('✅ App data preparation complete');
     } catch (error) {
       console.error('❌ Error during app data preparation:');

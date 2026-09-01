@@ -1,4 +1,6 @@
-// File: scripts/extract-model-data.js
+// File: scripts/extract-model-data.cjs
+// CommonJS (.cjs) deliberately -- package.json has "type": "module" for the
+// Astro/Vitest side of the app; this legacy script needs require()/module.exports.
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
@@ -6,10 +8,10 @@ const crypto = require('crypto');
 /**
  * This script crawls the orynt3d directory for model data (config.orynt3d files)
  * and combines them into a single data file for the gallery.
- * 
+ *
  * Run this script with the ORYNT3D_DIR environment variable set to your orynt3d data directory:
  * $env:ORYNT3D_DIR = "\\\\192.168.254.200\\data\\3D Files"
- * node scripts/extract-model-data.js
+ * node scripts/extract-model-data.cjs
  */
 
 // Configuration
