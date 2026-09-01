@@ -9,8 +9,14 @@
 `filter-engine.ts`) are ESM by default. The pre-existing CommonJS scripts
 (`extract-model-data.js`, `build-nextjs-app.js`, `deploy.js`) broke under that
 setting (`require is not defined in ES module scope`) and were renamed to
-`.cjs` to fix it -- content unchanged otherwise. All references below use the
-`.cjs` names.
+`.cjs` to fix it -- content unchanged otherwise.
+
+**Amendment (build-order step 2, 2026-09-01):** `extract-model-data.cjs` proved
+broken against the current Orynt3D output (drops whole subscriptions) and is
+being replaced, not extended. Build-order step 2 is now governed by
+**`docs/nas-scan-spec.md`** (Locked): `scripts/scan-nas.mjs` +
+`scripts/lib/model-resolve.mjs`, writing `data/raw/models.json`. Sections D6a,
+D7, Testing and the step-2 build-order entry below are updated accordingly.
 
 ## Problem
 
@@ -225,22 +231,24 @@ like "dragon" narrowing to ~87 renders fine either way.
   returning to the `transition:persist`ed island via Back. Save/restore
   `scrollTop` explicitly in the island; do not rely on the browser.
 
-### D6a -- Extract-step changes for recency (O3)
+### D6a -- Recency signal (O3)
 
-`extract-model-data.cjs` currently writes `dateAdded: new Date().toISOString()` for
-every model on every scan and `loadExistingDataFile()` only preserves `image`, so
-there is no usable recency signal. Changes:
+The old `extract-model-data.cjs` wrote `dateAdded: new Date().toISOString()` on
+every model every scan, so there was no usable recency signal. Fix (built in
+`scripts/lib/recency.cjs`, unit-tested):
 
-- Read `fs.statSync(modelDir).birthtimeMs || .mtimeMs` -> `addedTs` (retroactive
-  proxy, available on the existing collection now).
-- Extend the existing-data merge to also preserve a `firstSeenTs` per model id:
-  set it to `Date.now()` the first time an id appears, carry it forward
-  unchanged afterwards.
-- Keep `dateAdded` for display but stop relying on it for ordering.
+- `addedTs` = `fs.statSync(modelDir).birthtimeMs` (falls back to `mtimeMs`, then
+  `now`) -- a retroactive "when it hit the NAS" proxy, recomputed every run.
+- `firstSeenTs` = stamped `Date.now()` the first time a model id is seen,
+  preserved unchanged on every later run.
+- `build-filter-index.mjs` sorts by `firstSeenTs ?? addedTs` descending.
 
-These land in build-order step 2 (the extract/thumbnail step) and need tests
-added for the merge/preserve logic (previously untested legacy code being
-modified -> TDD applies to the change).
+**This now lives in the new scanner, not the old script.** Verifying step 2
+against the live NAS showed `extract-model-data.cjs` is broken against the
+current Orynt3D output (drops whole subscriptions). It is being **replaced** by
+`scripts/scan-nas.mjs` -- see **`docs/nas-scan-spec.md`** (Locked), which
+supersedes this section's "extract step" and the build-order step 2 below.
+`recency.cjs` is unchanged and reused by the new scanner.
 
 ### D6 -- Images: two committed WebP sizes, generated locally **[portfolio + O5]**
 
@@ -250,8 +258,8 @@ the PNGs are *tracked* despite being `.gitignore`d (tracked wins).
 
 **O5 resolved (2026-09-01):**
 
-- The extract step (local, NAS reachable) uses `sharp` to emit **two** WebP
-  renditions per model:
+- `scripts/make-thumbnails.mjs` (local, NAS reachable) uses `sharp` to emit
+  **two** WebP renditions per model:
   - `public/thumbnails/<id>.webp` -- ~400px longest edge, quality ~78 (grid)
   - `public/detail/<id>.webp` -- ~900px longest edge, quality ~80 (detail page)
 - Both are **committed**. Estimated ~500 MB total for ~4k models -- comparable to
@@ -270,26 +278,28 @@ the PNGs are *tracked* despite being `.gitignore`d (tracked wins).
 
 ```
 NAS (\\...\3D Files)
-  -> scripts/extract-model-data.cjs       (scans config.orynt3d; renamed from
-                                            .js for ESM compat, D6a recency added)
-       writes  data/raw/orynt3d-data.json  (gitignored working file)
-  -> scripts/build-filter-index.mjs        (NEW)
-       reads  data/raw/orynt3d-data.json
+  -> scripts/scan-nas.mjs                  (NEW -- replaces extract-model-data.cjs;
+                                            see docs/nas-scan-spec.md)
+       writes  data/raw/models.json         (gitignored working file)
+  -> scripts/make-thumbnails.mjs            (reads data/raw/models.json + NAS images)
+       writes public/thumbnails/<id>.webp   ~400px                 (COMMITTED)
+              public/detail/<id>.webp       ~900px                 (COMMITTED)
+  -> scripts/build-filter-index.mjs         (step 3 -- no NAS)
+       reads  data/raw/models.json
        writes src/data/filter-index.json           (COMMITTED snapshot)
               src/data/details.json        full per-model metadata (COMMITTED)
-              public/thumbnails/<id>.webp   ~400px                 (COMMITTED)
-              public/detail/<id>.webp       ~900px                 (COMMITTED)
   -> astro build                           (reads committed files only; no NAS)
 ```
 
-- `npm run data` = extract + build-filter-index. Run locally when the collection
-  changes; **commit the outputs**. This is the snapshot.
+- `npm run data` = scan-nas + make-thumbnails + build-filter-index. Run locally
+  when the collection changes; **commit the outputs**. This is the snapshot.
 - `npm run build` = `astro build` only. Reachable from Netlify with zero NAS
   access. Kills the standing CI blocker.
 - Netlify: branch deploy for `feat/astro-rewrite` (preview URL), production site
   stays on the old build until merge.
-- `.gitignore`: stop ignoring the snapshot files (they must be committed now);
-  keep ignoring `data/raw/` and `node_modules`.
+- `.gitignore`: the committed snapshot files (`src/data/*.json`,
+  `public/thumbnails/`, `public/detail/`) must NOT be ignored; keep ignoring
+  `data/raw/` and `node_modules`.
 
 ### D8 -- URL / shareable state
 
@@ -337,7 +347,9 @@ tests**). Per the global standard, test-first for every new pure-logic module.
 | filter island | component | toggle tag -> grid + counts update; AND/OR mode switch; sort control (Newest/Name/Release) reorders result slice; clear-all; sub/release + tag combined; URL read on mount / write on change; zero-result state |
 | `src/lib/grid-layout.ts` | unit | columns-per-row from container width at breakpoints; row-index <-> item-index mapping for the virtualizer; overscan bounds at list start/end; `scrollTop` save/restore round-trip |
 | `src/pages/m/[id].astro` `getStaticPaths` | unit | every `filter-index.json` id maps to a `details.json` entry; build fails loudly (not silently) on a missing id |
-| `extract-model-data.cjs` -- recency merge (D6a) | unit | `firstSeenTs` set on first sight of an id, preserved unchanged after; `addedTs` from birthtime with mtime fallback. Rest of the file (NAS scan/walk) stays exempt. |
+| `scripts/lib/recency.cjs` (D6a) | unit | `firstSeenTs` set on first sight of an id, preserved unchanged after; `addedTs` from birthtime -> mtime -> now fallback. **Done** (step 2). |
+| `scripts/lib/model-resolve.mjs` | unit | name/subscription/release/tag/sourceImage resolution -- see `docs/nas-scan-spec.md` -> Testing |
+| `scripts/scan-nas.mjs`, `scripts/make-thumbnails.mjs` | -- | exempt (fs walk + NAS I/O + sharp) |
 | Astro pages / config | -- | exempt (glue) |
 
 **Proposed coverage threshold** (to be locked in CLAUDE.md `## Test Coverage
@@ -349,10 +361,11 @@ Standard` when this spec goes Locked):
 - `src/lib/grid-layout.ts`: **90%** (pure logic, same bar as the filter engine)
 - `src/pages/m/[id].astro` `getStaticPaths`: smoke-tested (id/details mapping,
   loud failure on gap) -- no numeric target, it's routing glue
-- `scripts/extract-model-data.cjs`: **only** the new recency-merge logic is
-  in-scope (target 85%); the legacy NAS scan/walk/image-search stays exempt
-- exempt: `scripts/build-nextjs-app.cjs` (deleted anyway), `astro.config.mjs`,
-  `*.astro` pages, `deploy.cjs` (deleted anyway)
+- `scripts/lib/recency.cjs`: **85%** (met -- step 2)
+- `scripts/lib/model-resolve.mjs`: **90%** (pure logic; see `docs/nas-scan-spec.md`)
+- exempt: `scripts/scan-nas.mjs`, `scripts/make-thumbnails.mjs` (fs/NAS/sharp),
+  `scripts/build-nextjs-app.cjs` + `deploy.cjs` (deleted at step 7),
+  `astro.config.mjs`, `*.astro` pages
 
 ## Build order
 
@@ -361,11 +374,11 @@ Each step is test-first where it has a test row above. A step is not done until
 
 1. **Scaffold** -- new Astro project in place, Preact integration, Vitest wired,
    `.gitignore` updated. Old Next.js files stay until step 7.
-2. **`extract` step: thumbnails + recency** -- extend `extract-model-data.cjs` (or
-   add `scripts/make-thumbnails.mjs`) to emit both WebP renditions (`~400px` ->
-   `public/thumbnails/`, `~900px` -> `public/detail/`) via `sharp`, and add the
-   D6a recency changes (`addedTs` from fs birthtime, preserved `firstSeenTs`).
-   Tests for the id-merge/preserve logic. Verify against a NAS subset.
+2. **NAS scan + thumbnails + recency** -- see **`docs/nas-scan-spec.md`**
+   (Locked). Replace `extract-model-data.cjs` with `scripts/scan-nas.mjs` +
+   `scripts/lib/model-resolve.mjs` (test-first); recency (`recency.cjs`) and
+   thumbnail generation (`make-thumbnails.mjs`) done, thumbnails need the small
+   edit to read `data/raw/models.json`. Verify against a NAS subset, then full.
 3. **`build-filter-index.mjs`** -- tests, then implementation. Produce committed
    `filter-index.json` + details + `filter-index.example.json`. Sort newest-first
    for ordinal assignment.

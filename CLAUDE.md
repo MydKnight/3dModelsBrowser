@@ -31,68 +31,86 @@ Raw subscription downloads
   (extract-model-data.cjs reads config.orynt3d files → orynt3d-data.json → Next.js gallery → Netlify)
 ```
 
-## Architecture
+## Architecture (v2.0, in progress on `feat/astro-rewrite`)
 
 ```
-pages/
-  index.js              # Main gallery page — browse, filter, copy link
+src/
+  pages/
+    index.astro          # gallery shell; hosts the filter island (step 5)
+    m/[id].astro          # per-model detail page (step 7)
+  lib/                    # pure, unit-tested logic (filter-engine, grid-layout, ...)
+  data/
+    filter-index.json     # COMMITTED lean per-model records for the island (step 3)
+    details.json          # COMMITTED full per-model metadata for detail pages (step 3)
 scripts/
-  extract-model-data.cjs # Scans NAS for config.orynt3d files → public/orynt3d-data.json (legacy CommonJS; NAS-side changes land here for v2.0 too, see spec D6a)
-  build-nextjs-app.cjs   # Legacy Next.js build pipeline -- deleted in build-order step 7
-  deploy.cjs              # Legacy Next.js deployment helper -- deleted in build-order step 7
-  build-filter-index.mjs # v2.0: raw data -> committed filter-index.json + details.json (build-order step 3, not yet written)
+  scan-nas.mjs            # walks NAS config.orynt3d -> data/raw/models.json (step 2; see docs/nas-scan-spec.md)
+  make-thumbnails.mjs     # sharp -> public/thumbnails/<id>.webp (400px) + public/detail/<id>.webp (900px)
+  build-filter-index.mjs  # data/raw/models.json -> src/data/*.json  (step 3, no NAS)
+  lib/
+    recency.cjs           # addedTs / firstSeenTs helpers (D6a) -- DONE
+    model-resolve.mjs     # name/subscription/release/tag/image resolution (step 2)
+  extract-model-data.cjs  # LEGACY -- broken vs current NAS, deleted at step 2
+  build-nextjs-app.cjs    # LEGACY Next.js build -- deleted at step 7
+  deploy.cjs              # LEGACY -- deleted at step 7
+data/raw/                 # GITIGNORED working artefacts (models.json)
 public/
-  orynt3d-data.json     # GITIGNORED — generated locally, not committed
-  images/               # GITIGNORED — copied from NAS at build time
-example configs/        # Reference config examples
-netlify.toml            # Netlify build config (static export via output:export)
-next.config.js          # Next.js config
+  thumbnails/  detail/    # COMMITTED WebP renditions
+  images/                 # LEGACY PNGs, git rm --cached at step 7
+pages/, next.config.js    # LEGACY Next.js app -- deleted at step 7
 ```
+
+Full design: **`docs/astro-rewrite-spec.md`** (Locked). NAS-scan replacement:
+**`docs/nas-scan-spec.md`** (Locked).
 
 ## Tech Stack
 
-- **Next.js 15 + React 19** — static export (`output: 'export'`)
-- **Netlify** — hosting via Netlify's GitHub pull hook (push to main = auto-deploy)
-- **No database** — data embedded as a static JSON file at build time via `STATIC_DATA_PLACEHOLDER` env var
+- **Astro (static)** + one **Preact + `@preact/signals`** island for search/filter/grid
+- **`@tanstack/virtual`** for the virtualized grid
+- **`sharp`** (local only) for WebP thumbnail generation
+- **Vitest** + `@testing-library/preact` for tests
+- **Netlify** — `npm run build` is `astro build` only, reads committed snapshot, never touches the NAS
+- No database; no runtime data fetch (data inlined at build)
 
-## How the Build Works
+## Pipeline
 
-The build is not a standard `next build` — it's a two-step process:
+```
+NAS  -> scan-nas.mjs        -> data/raw/models.json          (gitignored)
+     -> make-thumbnails.mjs -> public/thumbnails|detail/*.webp (committed)
+     -> build-filter-index.mjs -> src/data/{filter-index,details}.json (committed)
+     -> astro build         (no NAS)
+```
 
-1. `scripts/extract-model-data.cjs` — scans `\\NAS\data\3D Files` for `config.orynt3d` files, copies preview images to `public/images/`, writes `public/orynt3d-data.json`
-2. `scripts/build-nextjs-app.cjs` — reads `orynt3d-data.json`, base64-encodes it into `STATIC_DATA_PLACEHOLDER` env var, then runs `next build`
-
-The `index.js` page reads `STATIC_DATA_PLACEHOLDER` at build time so the data is fully embedded in the static output — no runtime API calls needed.
-
-**Important (legacy):** `npm run build:legacy` invokes `build-nextjs-app.cjs`, which expects the NAS to be reachable. Running this without NAS access will fail at the data step. **In v2.0, `npm run build` is `astro build` only and never touches the NAS** -- see spec D7.
+`npm run data` runs the first three; **commit the outputs** -- that is the snapshot Netlify builds from.
 
 ## Current State
 
-- **Next.js implementation (being replaced):** gallery, filtering, copy-link, responsive layout all work; static export + Netlify configured. Last real commit March 2026. Netlify deploy may be stale -- check the dashboard.
-- **Astro v2.0:** spec **Locked** (`docs/astro-rewrite-spec.md`, O1-O6 all resolved 2026-09-01). No code yet. Next step is build-order step 1 (scaffold `feat/astro-rewrite`).
+- **v2.0 Astro rewrite in progress** on `feat/astro-rewrite`.
+  - Step 1 (scaffold): **done** -- Astro + Preact + Vitest, `astro build`/`dev` verified NAS-free.
+  - Step 2 (NAS scan): **in progress.** `recency.cjs` + `make-thumbnails.mjs` + `thumbnail-paths.cjs` done and unit-tested; thumbnail generation verified against real images (400/900px WebP). Blocked mid-step by the `extract-model-data.cjs` drift -> replacing it with `scan-nas.mjs` per `docs/nas-scan-spec.md`.
+- **Legacy Next.js app:** superseded. `npm run dev:legacy`/`build:legacy` stop working once `extract-model-data.cjs` is deleted (step 2); full removal at step 7.
 
 ## Known Gaps
 
-- No tests (TDD stands up as part of the v2.0 rewrite -- see spec Testing section)
-- No `.env.example` (NAS path is hardcoded in `extract-model-data.cjs` as `ORYNT3D_DIR` env var -- should be documented)
-- `package.json` name is `model-data-population-application` -- rename to `3d-models-browser` during the rewrite scaffold
-- No committed example of the data shape -- v2.0 adds `src/data/filter-index.example.json` (spec Data contract section)
-- Old Next.js build fails hard without NAS -- v2.0's committed-snapshot pipeline (spec D7) fixes this
+- Tests: only `scripts/lib/**` covered so far (recency, thumbnail-paths). Everything else pending its build-order step.
+- No `.env.example` for `ORYNT3D_DIR` (still hardcoded default in the scanner)
+- `src/data/filter-index.example.json` not yet created (step 3)
+- `public/images/` (588 MB) + `public/orynt3d-data.json` still tracked -- `git rm --cached` at step 7
+- The committed `public/orynt3d-data.json` leaks the NAS IP via `sourcePath`; v2.0 artefacts drop it (relPath only)
 
 ## Next Actions
 
-Follow the spec's build order (`docs/astro-rewrite-spec.md` -> Build order). All on `feat/astro-rewrite`.
+Follow `docs/astro-rewrite-spec.md` -> Build order. All on `feat/astro-rewrite`.
 
-1. **Step 1 -- scaffold:** Astro + Preact + `@preact/signals` + Vitest, `.gitignore` update, rename `package.json` name to `3d-models-browser`. Old Next.js files stay.
-2. **Step 2 -- extract step:** dual WebP thumbnails (`sharp`) + recency fields (`addedTs`, preserved `firstSeenTs`); tests for the merge logic.
-3. **Step 3 -- `build-filter-index.mjs`:** tests then impl; emits `filter-index.json` + `details.json` + `filter-index.example.json`.
+1. ~~Step 1 -- scaffold~~ **done**
+2. **Step 2 -- NAS scan** (`docs/nas-scan-spec.md`, Locked): fixture tree -> `model-resolve.mjs` (test-first) -> `scan-nas.mjs` -> point `make-thumbnails.mjs` at `data/raw/models.json` -> delete `extract-model-data.cjs` -> gitignore `data/raw/`. Verify NAS subset then full.
+3. **Step 3 -- `build-filter-index.mjs`:** tests then impl; `filter-index.json` + `details.json` + `.example.json`; sort newest-first.
 4. **Step 4 -- `filter-engine.ts`:** tests (brute-force facet-count reference, AND/OR, sort modes) then impl.
 5. **Step 5 -- filter island:** panel + engine wiring + URL sync; component tests.
-6. **Step 6 -- windowed grid:** tests for `grid-layout.ts` (column math, row mapping, scrollTop round-trip) first, then `@tanstack/virtual` integration.
-7. **Step 7 -- detail pages:** test for `getStaticPaths` id/details mapping first, then `/m/[id]`, static shell pages, `<ClientRouter />` + `transition:persist`; delete Next.js remnants and `git rm --cached -r public/images`.
+6. **Step 6 -- windowed grid:** `grid-layout.ts` tests first, then `@tanstack/virtual`.
+7. **Step 7 -- detail pages** + delete all Next.js remnants + `git rm --cached -r public/images`.
 8. **Steps 8-9:** Netlify branch deploy -> `/code-review` + squash + merge.
 
-Every step's code is not marked done until it clears all three verification gates in order: tests written -> tests passing -> `verify` skill's live functional check (per the global spec-sync rule). Since this is a from-scratch rewrite there is no untested-legacy exemption to lean on -- every new module in the build order is test-first.
+No step's code is done until: tests written -> tests passing -> `verify` live functional check, in that order. From-scratch rewrite = no legacy exemption; every new module is test-first.
 
 ## Test Coverage Standard
 
@@ -101,23 +119,24 @@ Defined 2026-09-01 with the v2.0 spec (`docs/astro-rewrite-spec.md` -> Testing).
 | Scope | Target |
 |---|---|
 | `src/lib/**` (filter engine, grid layout, helpers) | 90% lines/branches |
+| `scripts/lib/model-resolve.mjs` | 90% |
 | `scripts/build-filter-index.mjs` | 85% |
-| `scripts/extract-model-data.cjs` -- **only** the new recency-merge logic | 85% |
+| `scripts/lib/recency.cjs` | 85% (met) |
 | Island components | 70% |
 | `src/pages/m/[id].astro` `getStaticPaths` | smoke-tested, no numeric target (routing glue) |
-| Exempt | legacy NAS scan/walk in `extract-model-data.cjs`, `scripts/build-nextjs-app.cjs` (deleted), `astro.config.mjs`, other `*.astro` pages, `deploy.cjs` (deleted) |
+| Exempt | `scripts/scan-nas.mjs` + `scripts/make-thumbnails.mjs` (fs/NAS/sharp), `astro.config.mjs`, other `*.astro` pages, legacy `*.cjs` (deleted) |
 
 ## Out of Spec
 
-- No tests yet (being addressed in v2.0)
-- Source not under `src/` in the Next.js layout (`pages/`, `scripts/`) -- v2.0 Astro layout moves logic into `src/`
-- `package.json` name/author/description fields unset or wrong
+- Tests incomplete -- coverage grows per build-order step (see above)
+- Legacy Next.js files (`pages/`, `next.config.js`, `*.cjs`) still present -- deleted at step 7
+- `package.json` author field still empty
 
 ## Deployment
 
-Netlify is connected to the GitHub repo via pull hook — pushing to `main` triggers a Netlify build automatically. No manual deploy step needed. The Netlify build environment needs `ORYNT3D_DIR` set if the build script reads it from env; otherwise the hardcoded NAS path in the script will be used (which only works on the local machine, not Netlify).
+Netlify builds via GitHub pull hook (push to `main` = auto-deploy). `npm run build` = `astro build` only -- it reads the committed `src/data/*.json` + `public/thumbnails|detail/` snapshot and never contacts the NAS, so the build environment needs nothing special. Refreshing the snapshot (`npm run data`) is a local, NAS-connected step whose outputs are committed.
 
-> Note (legacy, resolved by v2.0): the Next.js build fails on Netlify because the NAS is not reachable from Netlify's build environment. v2.0's committed-snapshot pipeline (spec D7) fixes this -- `npm run build` never touches the NAS.
+Branch strategy: `feat/astro-rewrite` gets a Netlify **branch deploy** for preview; production stays on the old build until merge.
 
 ## Development
 
