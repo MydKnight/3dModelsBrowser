@@ -4,9 +4,19 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-3dModelsBrowser is a Next.js static web app that serves as a searchable gallery for a personal 3D model collection. It reads metadata produced by Orynt3D (the desktop cataloguing app) and makes it browsable from anywhere via Netlify.
+3dModelsBrowser is a static web app that serves as a searchable gallery for a personal 3D model collection. It reads metadata produced by Orynt3D (the desktop cataloguing app) and makes it browsable from anywhere via Netlify.
 
-**Personal tool** — the repo contains only app code. No model data or preview images are committed; these are generated locally from the NAS at build time.
+**Personal tool.** The repo currently commits a data snapshot (`public/orynt3d-data.json`, ~944 models) and preview images (`public/images/`, ~1599 files) that were tracked before `.gitignore` was tightened -- these are stale but real. Fresh data is generated locally from the NAS.
+
+## Status: v2.0 Astro rewrite (Active, started 2026-09-01)
+
+The Next.js implementation is being replaced with Astro. Reasons: the unvirtualized grid is poor on mobile at the real collection size (~4k models, +100/month), the filter payload ships full metadata for every model, and the `STATIC_DATA_PLACEHOLDER` base64-env-var data embed is a hack that also blocks Netlify CI (NAS unreachable from the build).
+
+**The rewrite's center of gravity is the filter/tag island performance at 4k+ models** -- bitset-based result-set computation and live per-facet tag counts, plus a windowed grid. Build time and bundle size are explicitly not the concern.
+
+Full design: **`docs/astro-rewrite-spec.md`** (Status: Draft). Do not build ad hoc -- lock the spec's open questions first.
+
+Work happens on `feat/astro-rewrite` with a Netlify branch deploy for preview; production stays on the old build until merge.
 
 ## Where This Lives in the Pipeline
 
@@ -57,26 +67,50 @@ The `index.js` page reads `STATIC_DATA_PLACEHOLDER` at build time so the data is
 
 ## Current State
 
-- Gallery, filtering, and copy-link features are working
-- Mobile layout is responsive
-- Static export and Netlify deployment are configured
-- Netlify deployment may have gone stale (last commit May 2025) — check Netlify dashboard before assuming it's live
+- **Next.js implementation (being replaced):** gallery, filtering, copy-link, responsive layout all work; static export + Netlify configured. Last real commit March 2026. Netlify deploy may be stale -- check the dashboard.
+- **Astro v2.0:** spec **Locked** (`docs/astro-rewrite-spec.md`, O1-O6 all resolved 2026-09-01). No code yet. Next step is build-order step 1 (scaffold `feat/astro-rewrite`).
 
 ## Known Gaps
 
-- No tests
-- No `.env.example` (NAS path is hardcoded in `extract-model-data.js` as `ORYNT3D_DIR` env var — should be documented)
-- `package.json` name is `model-data-population-application` — consider updating to `3d-models-browser`
-- Should add an `orynt3d-data.example.json` with a few sample entries so the data shape is documented in the repo
-- Build pipeline has no fallback for missing NAS — fails hard rather than gracefully
+- No tests (TDD stands up as part of the v2.0 rewrite -- see spec Testing section)
+- No `.env.example` (NAS path is hardcoded in `extract-model-data.js` as `ORYNT3D_DIR` env var -- should be documented)
+- `package.json` name is `model-data-population-application` -- rename to `3d-models-browser` during the rewrite scaffold
+- No committed example of the data shape -- v2.0 adds `src/data/filter-index.example.json` (spec Data contract section)
+- Old Next.js build fails hard without NAS -- v2.0's committed-snapshot pipeline (spec D7) fixes this
 
 ## Next Actions
 
-1. Add `orynt3d-data.example.json` with 2–3 sample model entries to document the data contract
-2. Add `ORYNT3D_DIR` to a `.env.example` (or document it in README setup instructions)
-3. Verify Netlify deployment is still live; reconnect/redeploy if stale
-4. Update `package.json` name field
-5. Evaluate: does the `deploy.js` script do anything Netlify's pull hook doesn't handle automatically?
+Follow the spec's build order (`docs/astro-rewrite-spec.md` -> Build order). All on `feat/astro-rewrite`.
+
+1. **Step 1 -- scaffold:** Astro + Preact + `@preact/signals` + Vitest, `.gitignore` update, rename `package.json` name to `3d-models-browser`. Old Next.js files stay.
+2. **Step 2 -- extract step:** dual WebP thumbnails (`sharp`) + recency fields (`addedTs`, preserved `firstSeenTs`); tests for the merge logic.
+3. **Step 3 -- `build-filter-index.mjs`:** tests then impl; emits `filter-index.json` + `details.json` + `filter-index.example.json`.
+4. **Step 4 -- `filter-engine.ts`:** tests (brute-force facet-count reference, AND/OR, sort modes) then impl.
+5. **Step 5 -- filter island:** panel + engine wiring + URL sync; component tests.
+6. **Step 6 -- windowed grid:** tests for `grid-layout.ts` (column math, row mapping, scrollTop round-trip) first, then `@tanstack/virtual` integration.
+7. **Step 7 -- detail pages:** test for `getStaticPaths` id/details mapping first, then `/m/[id]`, static shell pages, `<ClientRouter />` + `transition:persist`; delete Next.js remnants and `git rm --cached -r public/images`.
+8. **Steps 8-9:** Netlify branch deploy -> `/code-review` + squash + merge.
+
+Every step's code is not marked done until it clears all three verification gates in order: tests written -> tests passing -> `verify` skill's live functional check (per the global spec-sync rule). Since this is a from-scratch rewrite there is no untested-legacy exemption to lean on -- every new module in the build order is test-first.
+
+## Test Coverage Standard
+
+Defined 2026-09-01 with the v2.0 spec (`docs/astro-rewrite-spec.md` -> Testing). Runner: Vitest. Component tests: `@testing-library/preact`.
+
+| Scope | Target |
+|---|---|
+| `src/lib/**` (filter engine, grid layout, helpers) | 90% lines/branches |
+| `scripts/build-filter-index.mjs` | 85% |
+| `scripts/extract-model-data.js` -- **only** the new recency-merge logic | 85% |
+| Island components | 70% |
+| `src/pages/m/[id].astro` `getStaticPaths` | smoke-tested, no numeric target (routing glue) |
+| Exempt | legacy NAS scan/walk in `extract-model-data.js`, `scripts/build-nextjs-app.js` (deleted), `astro.config.mjs`, other `*.astro` pages, `deploy.js` |
+
+## Out of Spec
+
+- No tests yet (being addressed in v2.0)
+- Source not under `src/` in the Next.js layout (`pages/`, `scripts/`) -- v2.0 Astro layout moves logic into `src/`
+- `package.json` name/author/description fields unset or wrong
 
 ## Deployment
 
