@@ -110,9 +110,16 @@ record per model, **only filterable/renderable-in-grid fields**:
 
 Dictionary-encoding tags/subs/releases as integer ids is the main size lever:
 repeated strings (`"rescale miniatures"` x hundreds) collapse to one byte-ish
-int. Estimated ~120-180 bytes/model wire -> ~0.6-0.9 MB for 5k models,
-gzip ~150-250 KB. Acceptable as a single `client:load` fetch; shard later only if
-that projection is wrong.
+int.
+
+`filter-index.json` is imported by `index.astro` and passed to the island as a
+`client:load` prop (serialized into the page HTML for hydration) -- not fetched.
+Simpler (no loading state, no request waterfall) and the numbers hold:
+**measured at 944 models, `filter-index.json` is 132 KB and the whole
+`index.html` gzips to 42 KB**; island JS (Preact + signals + component) is
+~12 KB gzip. Projecting to 5k models: ~200 KB gzip for the page. If that ever
+becomes a problem, switch the island to `fetch('/data/filter-index.json')` --
+`build-filter-index.mjs` would just write to `public/data/` instead.
 
 **Everything else** (`subscription`, `release`, full tag list, `relPath`,
 `dateAdded`, full-size image) -- **not in the island payload**. It lives in a
@@ -216,12 +223,19 @@ the *result list*, whatever its size. It only matters when the result list is
 large (few/no filters, or the initial newest-first browse of all N) -- a search
 like "dragon" narrowing to ~87 renders fine either way.
 
-- `@tanstack/virtual` (`virtual-core`, framework-agnostic, thin Preact binding).
-- Cards are **uniform height** -> fixed-size *row* virtualization. Only extra
-  work: a `ResizeObserver` on the grid container computing columns-per-row from
-  width, so the virtualizer maps result items to rows.
-- Render visible rows + ~2 rows overscan. DOM card count stays ~20-40 regardless
-  of result-list size; per-update cost is constant.
+- Row windowing is **hand-rolled over `src/lib/grid-layout.ts`** (unit-tested:
+  `columnsForWidth`, `rowCount`, `itemRange`, `contentHeight`, `clampScrollTop`),
+  not `@tanstack/virtual` -- uniform-height rows make it a scroll listener + a
+  computed visible-row range, and wiring `virtual-core` to Preact added
+  complexity without benefit. `@tanstack/virtual-core` stays a dependency in
+  case dynamic row heights are ever needed.
+- Cards are **uniform height** -> fixed-size *row* virtualization. A
+  `ResizeObserver` on the scroll container feeds `columnsForWidth`.
+- Render visible rows + ~3 rows overscan, absolutely positioned inside a
+  `contentHeight`-tall canvas. DOM card count stays bounded regardless of
+  result-list size.
+- `scrollTop` saved to `sessionStorage` on scroll, restored (via
+  `clampScrollTop`) on mount -- survives a detail-page round trip.
 - No pagination, no "load more".
 - Thumbnails: `loading="lazy"`, explicit `width`/`height` (no CLS),
   `decoding="async"`.
@@ -353,8 +367,10 @@ tests**). Per the global standard, test-first for every new pure-logic module.
 |---|---|---|
 | `src/lib/filter-engine.ts` | unit | bitset build from index; AND tag semantics; OR-within / AND-across group semantics; name-search bitset; `popcount`; facet-count correctness against a brute-force reference over fixtures; empty-result and all-selected edge cases |
 | `scripts/build-filter-index.mjs` -- `buildIndex()` | unit | raw -> lean transform; newest-first ordering; dictionary integrity (no orphans, sorted); tag/sub/rel id encoding; details.json shape; loud failure on missing/duplicate id and missing thumbnail. `main()` (fs glue) exempt, same as scan-nas. |
-| filter island | component | toggle tag -> grid + counts update; AND/OR mode switch; sort control (Newest/Name/Release) reorders result slice; clear-all; sub/release + tag combined; URL read on mount / write on change; zero-result state |
-| `src/lib/grid-layout.ts` | unit | columns-per-row from container width at breakpoints; row-index <-> item-index mapping for the virtualizer; overscan bounds at list start/end; `scrollTop` save/restore round-trip |
+| `src/lib/use-gallery.ts` | unit | state mutators; results + facet counts reflect state; clear keeps sort; hydrate from query string; emits query string on change (deduped); dispose stops emissions |
+| `src/lib/url-state.ts` | unit | state <-> query string round-trip; values-not-ids; drops unknown values; tagmode/sort defaults |
+| `src/components/GalleryIsland.tsx` | component | tag toggle -> grid + zero-count disable; AND/OR switch; search; sub checkbox; clear-all visibility + reset; hydrate from `initialSearch`; debounced `history.replaceState` |
+| `src/lib/grid-layout.ts` | unit | columns-per-row (gap-aware); rowCount; itemRange (half-open, clamped); contentHeight; clampScrollTop (shorter list on Back) |
 | `src/pages/m/[id].astro` `getStaticPaths` | unit | every `filter-index.json` id maps to a `details.json` entry; build fails loudly (not silently) on a missing id |
 | `scripts/lib/recency.cjs` (D6a) | unit | `firstSeenTs` set on first sight of an id, preserved unchanged after; `addedTs` from birthtime -> mtime -> now fallback. **Done** (step 2). |
 | `scripts/lib/model-resolve.mjs` | unit | name/subscription/release/tag/sourceImage resolution -- see `docs/nas-scan-spec.md` -> Testing |
@@ -381,26 +397,23 @@ Standard` when this spec goes Locked):
 Each step is test-first where it has a test row above. A step is not done until
 `verify` (live functional check) passes, per the global spec-sync rule.
 
-1. **Scaffold** -- new Astro project in place, Preact integration, Vitest wired,
-   `.gitignore` updated. Old Next.js files stay until step 7.
-2. **NAS scan + thumbnails + recency** -- see **`docs/nas-scan-spec.md`**
-   (Locked). Replace `extract-model-data.cjs` with `scripts/scan-nas.mjs` +
-   `scripts/lib/model-resolve.mjs` (test-first); recency (`recency.cjs`) and
-   thumbnail generation (`make-thumbnails.mjs`) done, thumbnails need the small
-   edit to read `data/raw/models.json`. Verify against a NAS subset, then full.
-3. **`build-filter-index.mjs`** -- tests, then implementation. Produce committed
-   `filter-index.json` + details + `filter-index.example.json`. Sort newest-first
-   for ordinal assignment.
-4. **`filter-engine.ts`** -- tests (incl. brute-force reference for facet counts,
-   AND + OR modes, sort modes), then implementation. No DOM.
-5. **Filter island** -- panel (tags with live counts, AND/OR toggle, subs,
-   releases, search, sort control, clear-all), wired to the engine, URL sync.
-   Component tests.
-6. **Windowed grid** -- tests for `grid-layout.ts` (column math, row mapping,
-   scrollTop round-trip) first, then implementation: `@tanstack/virtual`
-   fixed-height rows, ResizeObserver-driven columns, lazy thumbnails, wired-up
-   save/restore for Back. Verify scroll perf on a throttled-CPU mobile profile
-   with the full 4k snapshot.
+1. **Scaffold** -- **done** (commit b546feb). Astro + Preact + Vitest.
+2. **NAS scan + thumbnails + recency** -- `docs/nas-scan-spec.md` (Locked).
+   **Code done** (scan-nas.mjs, model-resolve.mjs, recency.cjs,
+   make-thumbnails.mjs; verified on a NAS subset). **Pending:** the full NAS
+   run + committing the real `src/data/*.json` + `public/thumbnails|detail/`
+   (owner runs `npm run data` when the NAS link is fast; see the dev bootstrap).
+3. **`build-filter-index.mjs`** -- **done** (commit 49a77d4). `buildIndex()`
+   pure + tested; `filter-index.example.json` committed; `src/data/*.json`
+   generated (from the bootstrap for now).
+4. **`filter-engine.ts`** -- **done** (commit 603cd1b). Bitsets + facet counts,
+   fuzzed vs a naive reference.
+5. **Filter island** -- **done**. `use-gallery.ts` (state/engine/URL) +
+   `url-state.ts` + `GalleryIsland.tsx` (panel + windowed grid) + `index.astro`.
+   Component tests green; `astro build`/`dev` verified.
+6. **Windowed grid** -- **done** as part of step 5: `grid-layout.ts` (tested) +
+   hand-rolled row windowing in `GalleryIsland.tsx`. Still to verify: scroll
+   perf on a throttled mobile profile against the real full snapshot.
 7. **Detail pages `/m/[id]`** -- test for `getStaticPaths`'s id/details mapping
    first, then the page (900px image, full metadata, copy-link), static
    about/header/footer, `<ClientRouter />` + `transition:persist` on the island.
@@ -429,6 +442,6 @@ Each step is test-first where it has a test row above. A step is not done until
 | O1 | Modal or full nav to `/m/[id]`? | View Transitions (`<ClientRouter />`) + `transition:persist` island; no modal. |
 | O2 | OR toggle within tag group? | AND/OR toggle, default AND, mode in URL. Two-level grouping rejected for v2.0 (engine-ready, UI deferred). |
 | O3 | Default sort order? | Newest-first via fs birthtime (`addedTs`) + preserved `firstSeenTs`; sort control offers Newest / Name / Release. |
-| O4 | Grid: virtualization or content-visibility + cap? | True virtualization (`@tanstack/virtual`), fixed-height rows, no pagination. |
+| O4 | Grid: virtualization or content-visibility + cap? | True row windowing, fixed-height rows, no pagination. Hand-rolled over the unit-tested `grid-layout.ts` rather than `@tanstack/virtual` (uniform heights make it trivial). |
 | O5 | Generate WebP thumbs? | Two committed WebP sizes (400px grid, 900px detail) via `sharp` in the extract step; `git rm --cached` the original PNGs. |
 | O6 | Bundle details or per-id files? | One bundled `src/data/details.json`, build-time only. |
