@@ -114,11 +114,10 @@ int. Estimated ~120-180 bytes/model wire -> ~0.6-0.9 MB for 5k models,
 gzip ~150-250 KB. Acceptable as a single `client:load` fetch; shard later only if
 that projection is wrong.
 
-**Full metadata** (`notes`, `attributes`, `collections`, `sourcePath`,
-`relativeSourcePath`, `dateAdded`, image) -- **not in the island payload at
-all**. It lives in a single build-time file `src/data/details.json` (`{ id:
-{...meta} }`), which the static detail pages inline per-id (D3, O6). The browser
-never fetches it.
+**Everything else** (`subscription`, `release`, full tag list, `relPath`,
+`dateAdded`, full-size image) -- **not in the island payload**. It lives in a
+single build-time file `src/data/details.json` (`{ id: {...meta} }`), which the
+static detail pages inline per-id (D3, O6). The browser never fetches it.
 
 ### D3 -- Per-model detail pages replace the modal + `?modelId=` hack
 
@@ -311,24 +310,34 @@ NAS (\\...\3D Files)
 
 ## Data contract
 
-`build-filter-index.mjs` is the single source of the contract. It must:
+`build-filter-index.mjs` reads `data/raw/models.json` (from `scan-nas.mjs`,
+whose per-model shape is `{ id, name, subscription, release, tags, relPath,
+sourceImage, addedTs, firstSeenTs }`) and is the single source of the client
+contract. It must:
 
 - sort models by `firstSeenTs ?? addedTs` **descending** and assign ordinals in
   that order (ordinal 0 = newest); a snapshot's ordinals are fixed for that
   snapshot (a data refresh reassigns them, which is fine -- URL filter state is
   by tag/sub/release value, not ordinal);
-- carry `id` forward unchanged from `extract-model-data.cjs`
-  (`generateStableId`, md5-based) -- detail-page routes depend on it;
-- dictionary-encode `tags` (sorted), `subs`, `rels`; drop any tag/sub/rel that no
-  model references;
-- emit `src/data/details.json` as `{ [id]: { name, notes, tags, collections,
-  attributes, subscription, release, relativeSourcePath, dateAdded } }` (no
-  `sourcePath` -- it leaks the NAS IP; keep `relativeSourcePath` only);
-- fail loudly if a model has no `id`, no thumbnail, or no `details.json` entry.
+- carry `id` forward unchanged from `scan-nas.mjs` (`makeId`, md5-based) --
+  detail-page routes depend on it;
+- dictionary-encode `tags` (sorted), `subs` (sorted), `rels` (sorted, non-null
+  only); drop any tag/sub/rel that no model references;
+- per-model `filter-index.json` record:
+  `{ id, n: name, nl: name.toLowerCase(), t: number[], s: number, r: number|null, th: "<id>.webp" }`;
+- emit `src/data/details.json` as
+  `{ [id]: { name, tags, subscription, release, relPath, dateAdded } }` where
+  `dateAdded = new Date(firstSeenTs).toISOString()` (display only). No
+  `sourcePath` (leaks the NAS IP); `relPath` is root-relative. `notes` /
+  `attributes` / `collections` are not carried -- `scan-nas.mjs` doesn't resolve
+  them (Orynt3D app-DB territory, spec nas-scan-spec.md).
+- fail loudly if a model has no `id`, or if `public/thumbnails/<id>.webp` is
+  missing (unless `--no-thumb-check`, for building against the dev bootstrap
+  before thumbnails exist).
 
-A committed `src/data/filter-index.example.json` with ~5 representative models
-documents the shape in-repo (replaces the never-created
-`orynt3d-data.example.json` gap).
+`src/data/filter-index.example.json` is a **hand-written committed fixture**
+(~5 models) documenting the shape -- `build-filter-index.mjs` does not
+regenerate it (avoids churn on every data refresh).
 
 ## Testing
 
@@ -343,7 +352,7 @@ tests**). Per the global standard, test-first for every new pure-logic module.
 | Module | Kind | What it covers |
 |---|---|---|
 | `src/lib/filter-engine.ts` | unit | bitset build from index; AND tag semantics; OR-within / AND-across group semantics; name-search bitset; `popcount`; facet-count correctness against a brute-force reference over fixtures; empty-result and all-selected edge cases |
-| `scripts/build-filter-index.mjs` | unit | raw -> lean transform; dictionary integrity (no orphan ids, sorted); ordinal stability; id passthrough; loud failure on missing id/thumb |
+| `scripts/build-filter-index.mjs` -- `buildIndex()` | unit | raw -> lean transform; newest-first ordering; dictionary integrity (no orphans, sorted); tag/sub/rel id encoding; details.json shape; loud failure on missing/duplicate id and missing thumbnail. `main()` (fs glue) exempt, same as scan-nas. |
 | filter island | component | toggle tag -> grid + counts update; AND/OR mode switch; sort control (Newest/Name/Release) reorders result slice; clear-all; sub/release + tag combined; URL read on mount / write on change; zero-result state |
 | `src/lib/grid-layout.ts` | unit | columns-per-row from container width at breakpoints; row-index <-> item-index mapping for the virtualizer; overscan bounds at list start/end; `scrollTop` save/restore round-trip |
 | `src/pages/m/[id].astro` `getStaticPaths` | unit | every `filter-index.json` id maps to a `details.json` entry; build fails loudly (not silently) on a missing id |
@@ -356,7 +365,7 @@ tests**). Per the global standard, test-first for every new pure-logic module.
 Standard` when this spec goes Locked):
 
 - `src/lib/**` (filter engine + helpers): **90%** lines/branches
-- `scripts/build-filter-index.mjs`: **85%**
+- `scripts/build-filter-index.mjs` -- `buildIndex()`: **85%** (its `main()` fs glue exempt)
 - island components: **70%**
 - `src/lib/grid-layout.ts`: **90%** (pure logic, same bar as the filter engine)
 - `src/pages/m/[id].astro` `getStaticPaths`: smoke-tested (id/details mapping,

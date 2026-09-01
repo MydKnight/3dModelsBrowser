@@ -1,0 +1,71 @@
+{
+  "tags": [
+    "cr14",
+    "cr9",
+    "dragon",
+    "huge",
+    "humanoid",
+    "large",
+    "monstrosity"
+  ],
+  "subs": [
+    "Grinning God",
+    "Loot Studios",
+    "Rescale",
+    "Witchsong Miniatures"
+  ],
+  "rels": [
+    "A Light in the Shadow",
+    "May Release",
+    "Molten Hearts"
+  ],
+  "models": [
+    {
+      "id": "sir-roland-55aa55aa",
+      "n": "Sir Roland",
+      "nl": "sir roland",
+      "t": [
+        4,
+        5
+      ],
+      "s": 1,
+      "r": 0,
+      "th": "sir-roland-55aa55aa.webp"
+    },
+    {
+      "id": "ascendant-greatwolf-99ff99ff",
+      "n": "Ascendant Greatwolf",
+      "nl": "ascendant greatwolf",
+      "t": [
+        1,
+        3,
+        6
+      ],
+      "s": 3,
+      "r": null,
+      "th": "ascendant-greatwolf-99ff99ff.webp"
+    },
+    {
+      "id": "drakanchor-1a2b3c4d",
+      "n": "Drakanchor",
+      "nl": "drakanchor",
+      "t": [
+        0,
+        2,
+        3
+      ],
+      "s": 2,
+      "r": 2,
+      "th": "drakanchor-1a2b3c4d.webp"
+    },
+    {
+      "id": "goblin-warband-abcdabcd",
+      "n": "Goblin Warband",
+      "nl": "goblin warband",
+      "t": [],
+      "s": 0,
+      "r": 1,
+      "th": "goblin-warband-abcdabcd.webp"
+    }
+  ]
+}
