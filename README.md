@@ -1,87 +1,61 @@
 # 3D Models Browser
 
-A web application for browsing and viewing 3D model collections. This application allows users to browse through a library of 3D models with preview images and metadata.
+A searchable static gallery for a personal 3D-print model collection (~3,900
+models across 8 subscription lines). Reads metadata that the Orynt3D desktop app
+writes per model and makes it filterable from anywhere.
 
 ## Current Status
 
-**Active -- v2.0 Astro rewrite in progress (started 2026-09-01).**
-
-The Next.js implementation works but does not scale to the real collection size (~4,000 models, growing ~100/month): the gallery renders every card at once (poor on mobile) and the filter payload ships full metadata for every model. It is being replaced with an Astro build whose focus is a performant filter/tag experience at 4k+ models (bitset result sets, live per-facet tag counts, windowed grid). See `docs/astro-rewrite-spec.md`.
+**Active -- v2.0 (Astro) shipped 2026-09-02.**
 
 | Component | Status |
 |---|---|
-| Next.js gallery (browse, filter, copy link) | Working -- being replaced |
-| Mobile-responsive layout | Working -- grid does not scale to 4k models |
-| Static export + Netlify deployment | Configured (deploy may be stale) |
-| NAS -> JSON scan | `scripts/scan-nas.mjs` (replaced the broken `extract-model-data.cjs`); resolves name/subscription/release from `config.orynt3d` + folder structure |
-| Astro v2.0 | Spec drafted, no code yet |
-| Tests | None -- TDD stands up with the rewrite |
+| Filter island (search, sort, AND/OR tags, live per-facet counts) | ✅ |
+| Windowed results grid (bounded DOM at ~4k models) | ✅ |
+| Static per-model detail pages + View Transitions | ✅ |
+| Data pipeline (NAS scan -> WebP thumbnails -> filter index) | ✅ runs in a Docker container on the QNAP |
+| Tests | 140 (Vitest) |
+| Visual polish | Phase 2 -- functional, not pretty |
 
-**This is a personal tool.** A stale data snapshot and preview images are committed from before `.gitignore` was tightened; fresh data is generated locally from a NAS. To deploy your own instance, set up your own Netlify site pointed at your fork.
+Design docs: `docs/astro-rewrite-spec.md` (with a **Phase 2 backlog**),
+`docs/nas-scan-spec.md`, `docs/nas-container-spec.md`.
 
-**Pipeline context:** Downstream end of a 3-stage pipeline: `orynt3d-pipeline` -> Orynt3D desktop app -> this app.
+**Personal tool.** No model files are published (that would be the legal issue) --
+only the creators' public preview renders, resized to WebP.
 
-## Features
+**Pipeline context:** `orynt3d-pipeline` -> Orynt3D desktop -> **this app**.
 
-- Browse through a comprehensive collection of 3D models
-- View model images with associated metadata
-- Responsive design for desktop and mobile viewing
-- Fast performance with Next.js
+## Tech Stack
 
-## Technology Stack
+- **Astro 7** static site + one **Preact + `@preact/signals`** island (`client:load`)
+- Bitset filter engine (`Uint32Array` per tag/sub/release, SWAR popcount for facet counts)
+- Hand-rolled row windowing over a unit-tested layout module
+- **`sharp`** for WebP thumbnails (400 px grid / 900 px detail) -- run in the pipeline, not at build
+- **Vitest** + `@testing-library/preact`
+- **Netlify** -- `npm run build` = `astro build` only, reads the committed snapshot, no NAS
 
-- **Current**: Next.js 15 + React 19, static export (`output: 'export'`)
-- **v2.0 (in progress)**: Astro static site + a single Preact/`@preact/signals` island for search/filter/grid; Vitest for tests
-- **Deployment**: Netlify (push to `main` = auto-deploy)
+## How the data works
+
+`src/data/filter-index.json` + `details.json` and `public/thumbnails|detail/*.webp`
+are a **committed snapshot**. Netlify builds from it. To refresh it, the QNAP
+container walks the `3D Files` share locally, regenerates everything, and pushes
+one `chore(data): snapshot` commit -- see `docker/README.md`. A slower
+laptop-over-VPN fallback is `npm run data`.
+
+## Setup
+
+```sh
+npm install
+npm run dev        # astro dev -> http://localhost:4321
+npm test
+npm run build && npm run preview   # production build, served locally
+```
 
 ## Roadmap
 
-- **v2.0 -- Astro rewrite** (`docs/astro-rewrite-spec.md`): lean dictionary-encoded filter index, bitset filter engine with live tag facet counts, windowed grid, per-model detail pages, NAS-free Netlify build. In progress.
-
-## Project Structure
-
-- `/pages`: Next.js page components
-- `/public`: Static assets
-  - `/public/images`: Model preview images
-  - `/public/orynt3d-data.json`: Model metadata
-- `/scripts`: Build and deployment scripts
-- `/example configs`: Configuration examples for models and releases
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js (v14 or later)
-- npm or yarn
-
-### Installation
-
-1. Clone the repository:
-   ```
-   git clone https://github.com/MydKnight/3dModelsBrowser.git
-   ```
-
-2. Install dependencies:
-   ```
-   npm install
-   ```
-
-3. Run the development server:
-   ```
-   npm run dev
-   ```
-
-4. Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
-
-### Building for Production
-
-```
-npm run build
-```
-
-## Deployment
-
-This project is configured for deployment on Netlify. See the Netlify configuration in `netlify.toml`.
+`docs/astro-rewrite-spec.md` -> **Phase 2 backlog**: styling pass, detail-page
+CLS fix, two-level tag grouping, incremental scan, container cron, moving WebP
+to an R2 bucket.
 
 ## License
 

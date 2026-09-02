@@ -1,15 +1,13 @@
 # NAS Data Container -- Design Spec
 
-**Status:** Locked -- **ACTIVE feature** as of 2026-09-02
-**Target:** `feat/nas-data-container`, branched off **`feat/astro-rewrite`** (it
-needs that branch's `scripts/` -- and astro-rewrite is parked, so the eventual
-merge back is a fast-forward)
+**Status:** **Implemented** 2026-09-02 -- shipped with v2.0 on `main`.
 **Date:** 2026-09-02
 
-**Flow:** build the container here -> its first QNAP run generates the real v2.0
-snapshot and commits it on this branch -> `git merge --ff-only` this branch back
-into `feat/astro-rewrite` -> astro-rewrite finishes (Netlify branch deploy,
-`/code-review`, merge to `main`).
+The container ran end-to-end on the QNAP, produced the 3,882-model snapshot, and
+pushed it. To refresh: `docker compose -f compose.nas.yml run --rm nas-refresh`
+from the NAS's `3dmodels-apps/` folder (`.env` -> `TARGET_BRANCH=main`).
+Open items C2 (incremental scan) and C3 (cron) are in the astro-rewrite-spec
+Phase 2 backlog.
 
 ## Problem
 

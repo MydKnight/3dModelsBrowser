@@ -1,16 +1,15 @@
 # Astro Rewrite -- Design Spec
 
-**Status:** Locked -- **v2.0 built & verified, awaiting `/code-review` + merge**
+**Status:** **Implemented** -- shipped to `main` 2026-09-02 (`873a87f`)
 **Target:** v2.0
-**Date:** 2026-09-01 (O1-O6 resolved); built through 2026-09-02
+**Date:** 2026-09-01 (O1-O6 resolved); built + shipped 2026-09-02
 
-**2026-09-02:** Steps 1-7 done (138 tests). The data pipeline was too slow/flaky
-over SMB-over-VPN, so it was moved into a QNAP container
-(`docs/nas-container-spec.md`) -- which ran end-to-end on the NAS, produced the
-real **3,882-model snapshot**, and pushed it. `feat/nas-data-container`
-fast-forward-merged back; `feat/astro-rewrite` @ `16b9acf` now has everything.
-`astro build` = 3,883 pages, `index.html` 154 KB gzip; local preview fully
-functional. **Remaining:** `/code-review` -> merge to `main` -> repoint Netlify.
+Steps 1-7 built test-first (140 tests), code-reviewed. The data pipeline was too
+slow/flaky over SMB-over-VPN so it moved into a QNAP container
+(`docs/nas-container-spec.md`), which produced the real **3,882-model snapshot**.
+`astro build` = 3,883 pages; `index.html` 154 KB gzip + ~16 KB island JS.
+Preserved as the architectural record -- see the **Phase 2 backlog** at the end
+for what was deliberately deferred.
 
 **Amendment (build-order step 1, 2026-09-01):** `package.json` now has
 `"type": "module"` so new `.mjs`/`.ts` files (e.g. `build-filter-index.mjs`,
