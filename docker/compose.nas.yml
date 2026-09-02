@@ -1,16 +1,19 @@
-# docker/compose.nas.yml -- run on the QNAP via SSH:
+# compose.nas.yml -- copy this whole `docker/` directory anywhere on the QNAP
+# (e.g. your docker-compose share) and run from inside it via SSH:
 #
 #   export GH_TOKEN=github_pat_...              # fine-grained, contents:write
-#   docker compose -f docker/compose.nas.yml build
-#   docker compose -f docker/compose.nas.yml run --rm nas-refresh
+#   export NAS_3DFILES="/share/.../3D Files"    # the real share path
+#   docker compose -f compose.nas.yml build
+#   docker compose -f compose.nas.yml run --rm nas-refresh
 #
-# See docs/nas-container-spec.md.
+# The container clones the repo itself, so nothing else from the repo is needed
+# here. See docs/nas-container-spec.md.
 
 services:
   nas-refresh:
     build:
-      context: ..
-      dockerfile: docker/Dockerfile
+      context: .
+      dockerfile: Dockerfile
     image: 3dmodelsbrowser-nas-refresh
     environment:
       GH_REPO: MydKnight/3dModelsBrowser

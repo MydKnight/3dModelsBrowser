@@ -125,8 +125,10 @@ refresh run re-parents its snapshot commit onto the new tip automatically
    from it, so the scripts' default paths (`data/raw/`, `public/thumbnails|detail/`,
    `src/data/`) are already right; only `ORYNT3D_DIR` (env) points at the mount.
    `make-thumbnails` exit-code tuned so a couple of stragglers don't abort. **Done.**
-2. `docker/Dockerfile` + `compose.nas.yml` + `nas-refresh.sh` +
-   `lib/git-snapshot.sh` + `.dockerignore` + `.gitattributes` (LF for the
+2. `docker/` -- **self-contained** (build context is `docker/` itself, so only
+   this folder needs to reach the QNAP; the container clones the repo at
+   runtime): `Dockerfile` + `compose.nas.yml` + `nas-refresh.sh` +
+   `lib/git-snapshot.sh` + `.dockerignore`. Plus `.gitattributes` (LF for the
    scripts). **Done.**
 3. Test pass -- **done**. `bash -n` + the git-flow harness
    (`docker/git-snapshot.test.mjs`, in `npm test`) + a full local dry run:
