@@ -1,0 +1,5 @@
+# The image needs only the entrypoint scripts -- the repo itself is cloned at
+# runtime. Keep the build context tiny.
+*
+!docker/nas-refresh.sh
+!docker/lib/git-snapshot.sh

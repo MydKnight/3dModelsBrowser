@@ -1,0 +1,31 @@
+# docker/compose.nas.yml -- run on the QNAP via SSH:
+#
+#   export GH_TOKEN=github_pat_...              # fine-grained, contents:write
+#   docker compose -f docker/compose.nas.yml build
+#   docker compose -f docker/compose.nas.yml run --rm nas-refresh
+#
+# See docs/nas-container-spec.md.
+
+services:
+  nas-refresh:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: 3dmodelsbrowser-nas-refresh
+    environment:
+      GH_REPO: MydKnight/3dModelsBrowser
+      GH_TOKEN: ${GH_TOKEN:?set GH_TOKEN}
+      TARGET_BRANCH: ${TARGET_BRANCH:-feat/astro-rewrite}
+      ORYNT3D_DIR: /nas/3D Files
+      GIT_NAME: ${GIT_NAME:-Shiloh Madsen}
+      GIT_EMAIL: ${GIT_EMAIL:-shiloh.madsen@gmail.com}
+    volumes:
+      # TODO: confirm the real host path to the 3D Files share on the QNAP
+      # (something like /share/CACHEDEV1_DATA/<share>/3D Files). Read-only.
+      - "${NAS_3DFILES:-/share/CACHEDEV1_DATA/data/3D Files}:/nas/3D Files:ro"
+      - nas-refresh-repo:/repo
+      - nas-refresh-npm:/root/.npm
+
+volumes:
+  nas-refresh-repo:
+  nas-refresh-npm:
