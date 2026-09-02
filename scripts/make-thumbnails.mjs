@@ -165,7 +165,10 @@ async function main() {
     console.log(`\n⚠️  ${errored.length} model(s) errored (transient, not confirmed missing) -- re-run to retry:`);
     for (const e of errored.slice(0, 15)) console.log(`   ${e.id}: ${e.reason}`);
     if (errored.length > 15) console.log(`   ...and ${errored.length - 15} more`);
-    process.exitCode = 1;
+    // Exit non-zero only if a meaningful fraction stayed broken -- a couple of
+    // stragglers shouldn't block a container run from committing thousands of
+    // good thumbnails. They get retried on the next run (skip-if-exists).
+    if (errored.length > Math.max(10, processed * 0.02)) process.exitCode = 1;
   }
 }
 

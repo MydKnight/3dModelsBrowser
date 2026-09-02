@@ -193,12 +193,17 @@ This is the core of the spec. The island builds, once at startup from
 Combining 4-10 bitsets of ~160 `Uint32` words each is a few thousand int ops --
 low microseconds. This is what makes it hold at 4k and well beyond.
 
-**Live facet counts** (the part naive implementations get wrong): for every tag
-shown in the panel, display how many models the *current* result set would still
-contain if that tag were also selected. That is
-`popcount(resultBitset AND tagBitset[t])` for each of ~250 tags -> 250 x 160-word
-popcount ~= 40k ops. Recompute synchronously on every change; no memo needed at
-this size. Use the standard SWAR popcount over `Uint32`.
+**Live facet counts** (the part naive implementations get wrong): for every
+tag/sub/release shown in the panel, display how many models the result would
+contain if that value were also selected. **Real-data note (2026-09-02):** the
+first full snapshot has 231 tags + 8 subs + **175 releases** = ~414 facet values.
+Re-running the full filter per value (with its O(N) name-search scan inside) was
+33 ms/cycle at 3,882 models -- mobile jank. Replaced with the popcount fast path:
+`compute(state)` builds the per-group masks + the result + "result minus each one
+group's constraint" *once*, then each facet count is a couple of bitset ANDs +
+one SWAR popcount over ~120 `Uint32` words. **~0.3 ms/cycle** (filter + all 414
+facets) at ~4k models -- ~120x faster. The fuzz test (vs a naive `.filter()`
+reference over 200 random states) guards correctness.
 
 - Tags with a resulting count of 0 are dimmed/disabled, not hidden (avoids the
   panel reflowing out from under the user's tap).

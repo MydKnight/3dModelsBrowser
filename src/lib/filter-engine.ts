@@ -92,46 +92,65 @@ export class FilterEngine {
     }
   }
 
-  /** Result set as a bitset. Out-of-range ids (stale URL) are ignored. */
-  private resultBits(state: FilterState): Bitset {
-    const out = this.all.slice();
+  /** Bitset of models whose lowercased name contains `q`. `this.all` if `q` empty. */
+  private queryMask(query: string): Bitset {
+    const q = query.trim().toLowerCase();
+    if (!q) return this.all;
+    const bits = new Uint32Array(this.words);
+    for (let i = 0; i < this.count; i++) {
+      if (this.index.models[i].nl.includes(q)) bits[i >>> 5] |= 1 << (i & 31);
+    }
+    return bits;
+  }
+
+  /**
+   * All the pieces facetCounts needs, computed once: the per-group masks, the
+   * final result, and the result with each single group's constraint removed
+   * (so a facet count is a couple of bitset ops, not a full re-filter).
+   */
+  private compute(state: FilterState) {
+    const W = this.words;
     const tags = state.tags.filter((t) => this.tagBits[t]);
     const subs = state.subs.filter((s) => this.subBits[s]);
     const rels = state.rels.filter((r) => this.relBits[r]);
 
-    if (subs.length) {
-      const union = new Uint32Array(this.words);
-      for (const s of subs) orInto(union, this.subBits[s]);
-      andInto(out, union);
+    const subMask = subs.length ? unionOf(subs.map((s) => this.subBits[s]), W) : this.all;
+    const relMask = rels.length ? unionOf(rels.map((r) => this.relBits[r]), W) : this.all;
+    let tagMask: Bitset;
+    if (!tags.length) {
+      tagMask = this.all;
+    } else if (state.tagMode === 'OR') {
+      tagMask = unionOf(tags.map((t) => this.tagBits[t]), W);
+    } else {
+      tagMask = this.all.slice();
+      for (const t of tags) andInto(tagMask, this.tagBits[t]);
     }
-    if (rels.length) {
-      const union = new Uint32Array(this.words);
-      for (const r of rels) orInto(union, this.relBits[r]);
-      andInto(out, union);
-    }
-    if (tags.length) {
-      if (state.tagMode === 'OR') {
-        const union = new Uint32Array(this.words);
-        for (const t of tags) orInto(union, this.tagBits[t]);
-        andInto(out, union);
-      } else {
-        for (const t of tags) andInto(out, this.tagBits[t]);
-      }
-    }
-    if (state.query.trim()) {
-      const q = state.query.trim().toLowerCase();
-      const qbits = new Uint32Array(this.words);
-      for (let i = 0; i < this.count; i++) {
-        if (this.index.models[i].nl.includes(q)) qbits[i >>> 5] |= 1 << (i & 31);
-      }
-      andInto(out, qbits);
-    }
-    return out;
+    const qMask = this.queryMask(state.query);
+
+    const isect = (...masks: Bitset[]): Bitset => {
+      const out = this.all.slice();
+      for (const m of masks) if (m !== this.all) andInto(out, m);
+      return out;
+    };
+
+    return {
+      tags,
+      subs,
+      rels,
+      subMask,
+      relMask,
+      tagMask,
+      qMask,
+      result: isect(subMask, relMask, tagMask, qMask),
+      baseNoTags: isect(subMask, relMask, qMask),
+      baseNoSubs: isect(relMask, tagMask, qMask),
+      baseNoRels: isect(subMask, tagMask, qMask),
+    };
   }
 
   /** Ordered array of model ordinals (indices into index.models). */
   filter(state: FilterState): number[] {
-    const bits = this.resultBits(state);
+    const bits = this.compute(state).result;
     const ords: number[] = [];
     for (let w = 0; w < bits.length; w++) {
       const word = bits[w];
@@ -162,17 +181,60 @@ export class FilterEngine {
    * Already-selected values report the current result size.
    */
   facetCounts(state: FilterState): FacetCounts {
-    const current = popcount(this.resultBits(state));
-    const withAdded = (group: 'tags' | 'subs' | 'rels', v: number): number => {
-      if (state[group].includes(v)) return current;
-      return popcount(this.resultBits({ ...state, [group]: [...state[group], v] }));
+    const c = this.compute(state);
+    const cur = popcount(c.result);
+    const W = this.words;
+    const scratch = new Uint32Array(W);
+
+    const orMode = c.tags.length > 0 && state.tagMode === 'OR';
+    const tagCount = (i: number): number => {
+      if (c.tags.includes(i)) return cur;
+      const tb = this.tagBits[i];
+      if (!tb) return cur;
+      if (orMode) {
+        // result | (baseNoTags & tag)
+        for (let w = 0; w < W; w++) scratch[w] = c.result[w] | (c.baseNoTags[w] & tb[w]);
+      } else {
+        // AND mode / no tags selected: result & tag
+        for (let w = 0; w < W; w++) scratch[w] = c.result[w] & tb[w];
+      }
+      return popcount(scratch);
     };
+
+    // subs/rels are OR-within-group: adding a value widens that group's union.
+    const groupCount = (
+      baseNo: Bitset,
+      union: Bitset,
+      bit: Bitset | undefined,
+      selected: number[],
+      i: number
+    ): number => {
+      if (selected.includes(i)) return cur;
+      if (!bit) return cur;
+      if (selected.length) {
+        for (let w = 0; w < W; w++) scratch[w] = baseNo[w] & (union[w] | bit[w]);
+      } else {
+        for (let w = 0; w < W; w++) scratch[w] = baseNo[w] & bit[w];
+      }
+      return popcount(scratch);
+    };
+
     return {
-      tags: this.index.tags.map((_, i) => withAdded('tags', i)),
-      subs: this.index.subs.map((_, i) => withAdded('subs', i)),
-      rels: this.index.rels.map((_, i) => withAdded('rels', i)),
+      tags: this.index.tags.map((_, i) => tagCount(i)),
+      subs: this.index.subs.map((_, i) =>
+        groupCount(c.baseNoSubs, c.subMask, this.subBits[i], c.subs, i)
+      ),
+      rels: this.index.rels.map((_, i) =>
+        groupCount(c.baseNoRels, c.relMask, this.relBits[i], c.rels, i)
+      ),
     };
   }
+}
+
+function unionOf(bitsets: Bitset[], words: number): Bitset {
+  const out = new Uint32Array(words);
+  for (const b of bitsets) orInto(out, b);
+  return out;
 }
 
 function orInto(a: Bitset, b: Bitset): void {

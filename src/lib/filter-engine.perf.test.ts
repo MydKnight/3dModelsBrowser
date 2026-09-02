@@ -33,7 +33,9 @@ describe.skipIf(!hasData)('FilterEngine perf (real-volume data)', () => {
       engine.facetCounts(state);
     }
     const perCycle = (performance.now() - t0) / runs;
-    // Generous ceiling -- design target is well under 1ms; CI machines vary.
-    expect(perCycle).toBeLessThan(15);
+    // ~0.3ms/cycle on dev hardware at ~4k models after the popcount fast-path.
+    // Generous ceiling for slow CI; a regression to the old re-filter approach
+    // (~33ms) trips this.
+    expect(perCycle).toBeLessThan(5);
   });
 });
