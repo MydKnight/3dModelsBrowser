@@ -43,20 +43,46 @@ const configTags = (c) => c?.scancfg?.tags?.include ?? [];
  * Walk a tree and resolve every model. fs reads only, no writes.
  * @param {string} root
  * @param {Map<string,{firstSeenTs:number}>} [prior] - for firstSeenTs preservation
- * @returns {{ models: object[], stats: {dirs:number,models:number,noImage:number,unknownSub:number} }}
+ * @returns {{ models: object[], stats: {dirs:number,models:number,noImage:number,unknownSub:number,unknownSubNames:Set<string>,skippedDirs:string[]} }}
  */
 export function scanTree(root, prior = new Map(), { onProgress } = {}) {
-  const stats = { dirs: 0, models: 0, noImage: 0, unknownSub: 0, unknownSubNames: new Set() };
+  const stats = {
+    dirs: 0,
+    models: 0,
+    noImage: 0,
+    unknownSub: 0,
+    unknownSubNames: new Set(),
+    skippedDirs: [],
+  };
   const models = [];
+
+  // The share is SMB-over-VPN: readdir fails transiently. Retry a few times
+  // with backoff before giving up on a directory -- a silently skipped subtree
+  // means missing models (2026-09-01: a congested link dropped ~3k models).
+  const readdirResilient = (absDir) => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return fs.readdirSync(absDir, { withFileTypes: true });
+      } catch (err) {
+        if (err.code === 'ENOENT' || err.code === 'ENOTDIR' || attempt >= 5) throw err;
+        const ms = 300 * 2 ** attempt;
+        const until = Date.now() + ms;
+        while (Date.now() < until) {
+          /* sync backoff -- scanTree is synchronous */
+        }
+      }
+    }
+  };
 
   const walk = (absDir, relSegments, ancestorAttrs, ancestorTagLists) => {
     stats.dirs++;
     if (onProgress && stats.dirs % 100 === 0) onProgress(stats);
     let entries;
     try {
-      entries = fs.readdirSync(absDir, { withFileTypes: true });
+      entries = readdirResilient(absDir);
     } catch (err) {
-      console.error(`  skip ${absDir}: ${err.message}`);
+      console.error(`  ⚠️ could not read ${absDir}: ${err.message}`);
+      stats.skippedDirs.push(relSegments.join('/'));
       return;
     }
 
@@ -185,6 +211,15 @@ export function main() {
         `move under the right subscription, or add to SUBSCRIPTION_CANON:`
     );
     for (const s of stats.unknownSubNames) console.log(`     "${s}"`);
+  }
+  if (stats.skippedDirs.length) {
+    console.log(
+      `\n❌ ${stats.skippedDirs.length} director(ies) could not be read after retries -- ` +
+        `this scan is INCOMPLETE. Re-run against a quiet NAS:`
+    );
+    for (const d of stats.skippedDirs.slice(0, 20)) console.log(`     ${d}`);
+    if (stats.skippedDirs.length > 20) console.log(`     ...and ${stats.skippedDirs.length - 20} more`);
+    process.exitCode = 1;
   }
   console.log(`💾 ${outFile}`);
 }

@@ -92,6 +92,10 @@ describe('scanTree', () => {
     expect(result.stats.noImage).toBe(2);
   });
 
+  it('reads the whole fixture tree with no skipped directories', () => {
+    expect(result.stats.skippedDirs).toEqual([]);
+  });
+
   it('every model has recency timestamps and a stable id', () => {
     for (const m of result.models) {
       expect(typeof m.addedTs).toBe('number');
