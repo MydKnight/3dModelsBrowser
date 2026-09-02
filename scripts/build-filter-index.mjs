@@ -11,7 +11,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SUBSCRIPTION_CANON } from './lib/model-resolve.mjs';
 
+const KNOWN_SUBS = new Set(Object.values(SUBSCRIPTION_CANON));
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_RAW = path.join(__dirname, '../data/raw/models.json');
 const THUMBS_DIR = path.join(__dirname, '../public/thumbnails');
@@ -29,6 +31,8 @@ const recencyKey = (m) => m.firstSeenTs ?? m.addedTs ?? 0;
  * @param {{ thumbnailExists?: (id:string)=>boolean, skipThumbCheck?: boolean }} [opts]
  * @returns {{ filterIndex: object, details: Record<string, object> }}
  */
+export const PLACEHOLDER_THUMB = '_placeholder.webp';
+
 export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbCheck = false } = {}) {
   const seen = new Set();
   for (const m of rawModels) {
@@ -37,17 +41,13 @@ export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbC
     seen.add(m.id);
   }
 
-  if (!skipThumbCheck) {
-    const missing = rawModels.filter((m) => !thumbnailExists(m.id));
-    if (missing.length) {
-      const sample = missing.slice(0, 5).map((m) => m.id).join(', ');
-      throw new Error(
-        `build-filter-index: ${missing.length} model(s) missing a thumbnail (${sample}${
-          missing.length > 5 ? ', ...' : ''
-        }). Run make-thumbnails.mjs, or pass --no-thumb-check for dev.`
-      );
-    }
-  }
+  // A model with no rendered `<id>.webp` (its NAS folder had no image, or the
+  // pipeline hasn't generated one) still belongs in the gallery -- findable by
+  // name and tags. It gets the placeholder thumbnail. `skipThumbCheck` (dev,
+  // building against the bootstrap) treats everything as present.
+  const missingThumb = new Set(
+    skipThumbCheck ? [] : rawModels.filter((m) => !thumbnailExists(m.id)).map((m) => m.id)
+  );
 
   const sorted = [...rawModels].sort((a, b) => recencyKey(b) - recencyKey(a));
 
@@ -73,7 +73,7 @@ export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbC
     t: (m.tags ?? []).map((t) => tagIx.get(t)).sort((a, b) => a - b),
     s: subIx.get(m.subscription),
     r: m.release ? relIx.get(m.release) : null,
-    th: `${m.id}.webp`,
+    th: missingThumb.has(m.id) ? PLACEHOLDER_THUMB : `${m.id}.webp`,
   }));
 
   const details = {};
@@ -88,7 +88,16 @@ export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbC
     };
   }
 
-  return { filterIndex: { tags, subs, rels, models }, details };
+  return {
+    filterIndex: { tags, subs, rels, models },
+    details,
+    warnings: {
+      missingThumb: [...missingThumb],
+      unknownSubs: [...new Set(sorted.map((m) => m.subscription))].filter(
+        (s) => !KNOWN_SUBS.has(s)
+      ),
+    },
+  };
 }
 
 export function main() {
@@ -100,6 +109,11 @@ export function main() {
     process.exit(1);
   }
   const { models: rawModels } = JSON.parse(fs.readFileSync(rawFile, 'utf8'));
+
+  if (!skipThumbCheck && !fs.existsSync(THUMBS_DIR)) {
+    console.error(`❌ ${THUMBS_DIR} does not exist. Run make-thumbnails.mjs first (or --no-thumb-check).`);
+    process.exit(1);
+  }
 
   let result;
   try {
@@ -113,10 +127,7 @@ export function main() {
   }
 
   fs.mkdirSync(OUT_DIR, { recursive: true });
-  fs.writeFileSync(
-    path.join(OUT_DIR, 'filter-index.json'),
-    JSON.stringify(result.filterIndex)
-  );
+  fs.writeFileSync(path.join(OUT_DIR, 'filter-index.json'), JSON.stringify(result.filterIndex));
   fs.writeFileSync(path.join(OUT_DIR, 'details.json'), JSON.stringify(result.details));
 
   const { tags, subs, rels, models } = result.filterIndex;
@@ -125,6 +136,17 @@ export function main() {
       `${subs.length} subscriptions, ${rels.length} releases`
   );
   console.log(`✅ details.json: ${Object.keys(result.details).length} entries`);
+
+  const { missingThumb, unknownSubs } = result.warnings;
+  if (missingThumb.length) {
+    console.log(`⚠️  ${missingThumb.length} model(s) have no render -> placeholder thumbnail`);
+    for (const id of missingThumb.slice(0, 10)) console.log(`     ${id}`);
+    if (missingThumb.length > 10) console.log(`     ...and ${missingThumb.length - 10} more`);
+  }
+  if (unknownSubs.length) {
+    console.log(`⚠️  unrecognised subscription(s) (add to SUBSCRIPTION_CANON or fix the NAS folder):`);
+    for (const s of unknownSubs) console.log(`     "${s}"`);
+  }
   console.log(`💾 ${OUT_DIR}`);
 }
 

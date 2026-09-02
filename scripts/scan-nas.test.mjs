@@ -64,6 +64,19 @@ describe('scanTree', () => {
     expect(m.sourceImage).toMatch(/orc\.png$/);
   });
 
+  it('picks up a config-less leaf with STLs but NO image (real Grinning God case)', () => {
+    const m = byName('Drakthul');
+    expect(m).toBeDefined();
+    expect(m.subscription).toBe('Grinning God');
+    expect(m.sourceImage).toBeNull();
+  });
+
+  it('flags an unrecognised top-level folder as an unknown subscription', () => {
+    const m = byName('Snapjaw');
+    expect(m.subscription).toBe('The Trench - Crustaceans of the Deep');
+    expect(result.stats.unknownSubNames.has('The Trench - Crustaceans of the Deep')).toBe(true);
+  });
+
   it('strips the scale/support token from an Archvillain folder name when config has one', () => {
     // config has name "Nullborn Champion" so it wins; folder is
     // "Nullborn Champion_32mm_ReadyToSlice"
@@ -73,10 +86,10 @@ describe('scanTree', () => {
     expect(m.sourceImage).toMatch(/hero_preview\.png$/);
   });
 
-  it('records sourceImage:null and counts it for a model with no image', () => {
-    const m = byName('No Image Mob');
-    expect(m.sourceImage).toBeNull();
-    expect(result.stats.noImage).toBe(1);
+  it('records sourceImage:null for models with no image', () => {
+    expect(byName('No Image Mob').sourceImage).toBeNull();
+    expect(byName('Drakthul').sourceImage).toBeNull();
+    expect(result.stats.noImage).toBe(2);
   });
 
   it('every model has recency timestamps and a stable id', () => {

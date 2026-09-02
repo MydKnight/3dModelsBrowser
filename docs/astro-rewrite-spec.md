@@ -345,9 +345,11 @@ contract. It must:
   `sourcePath` (leaks the NAS IP); `relPath` is root-relative. `notes` /
   `attributes` / `collections` are not carried -- `scan-nas.mjs` doesn't resolve
   them (Orynt3D app-DB territory, spec nas-scan-spec.md).
-- fail loudly if a model has no `id`, or if `public/thumbnails/<id>.webp` is
-  missing (unless `--no-thumb-check`, for building against the dev bootstrap
-  before thumbnails exist).
+- fail loudly on a missing/duplicate `id`, or if `public/thumbnails/` doesn't
+  exist at all. A model whose own `<id>.webp` is missing (no render on the NAS)
+  gets `th: "_placeholder.webp"` (a committed grey tile) and a warning -- it
+  stays in the gallery, findable by name/tags. `--no-thumb-check` skips the
+  per-model check entirely (building against the dev bootstrap).
 
 `src/data/filter-index.example.json` is a **hand-written committed fixture**
 (~5 models) documenting the shape -- `build-filter-index.mjs` does not

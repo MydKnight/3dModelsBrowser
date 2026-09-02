@@ -46,7 +46,7 @@ const configTags = (c) => c?.scancfg?.tags?.include ?? [];
  * @returns {{ models: object[], stats: {dirs:number,models:number,noImage:number,unknownSub:number} }}
  */
 export function scanTree(root, prior = new Map(), { onProgress } = {}) {
-  const stats = { dirs: 0, models: 0, noImage: 0, unknownSub: 0 };
+  const stats = { dirs: 0, models: 0, noImage: 0, unknownSub: 0, unknownSubNames: new Set() };
   const models = [];
 
   const walk = (absDir, relSegments, ancestorAttrs, ancestorTagLists) => {
@@ -70,10 +70,10 @@ export function scanTree(root, prior = new Map(), { onProgress } = {}) {
     const meshFiles = files.filter((f) => MESH_EXTS.has(path.extname(f.name).toLowerCase()));
     const imageNames = files.map((f) => f.name);
 
-    const hasImage = imageNames.some((n) => IMAGE_EXTS.has(path.extname(n).toLowerCase()));
     const isModelConfig = config?.scancfg?.modelMode === 0;
-    const isFallbackModel =
-      !config && subDirs.length === 0 && meshFiles.length > 0 && hasImage;
+    // A config-less leaf full of print files is a model whether or not it has a
+    // render (Grinning God has no config.orynt3d and some models ship no image).
+    const isFallbackModel = !config && subDirs.length === 0 && meshFiles.length > 0;
 
     if (isModelConfig || isFallbackModel) {
       emit(absDir, relSegments, config, attrsHere, tagListsHere, imageNames);
@@ -92,7 +92,10 @@ export function scanTree(root, prior = new Map(), { onProgress } = {}) {
     const release = resolveRelease({ attrs, segments: relSegments });
     const tags = resolveTags({ tagLists: [config?.modelmeta?.tags ?? [], ...tagLists] });
     const id = makeId(name, relPath);
-    if (!sub.known) stats.unknownSub++;
+    if (!sub.known) {
+      stats.unknownSub++;
+      stats.unknownSubNames.add(sub.name);
+    }
 
     const chosen = pickSourceImage(imageNames);
     const sourceImage = chosen ? path.join(absDir, chosen) : null;
@@ -176,6 +179,13 @@ export function main() {
     `\n✅ ${stats.models} models from ${stats.dirs} dirs in ${secs}s ` +
       `(${stats.noImage} without an image, ${stats.unknownSub} with an unrecognised subscription)`
   );
+  if (stats.unknownSubNames.size) {
+    console.log(
+      `⚠️  unrecognised subscription folder(s) -- likely a misplaced release; ` +
+        `move under the right subscription, or add to SUBSCRIPTION_CANON:`
+    );
+    for (const s of stats.unknownSubNames) console.log(`     "${s}"`);
+  }
   console.log(`💾 ${outFile}`);
 }
 

@@ -131,10 +131,22 @@ export function buildNasFixture() {
   img(['Grinning God', 'May Release', 'Enemies', 'Orc Pack', 'orc.png'], 1200);
   w(['Grinning God', 'May Release', 'Enemies', 'Orc Pack', 'orc.stl'], 'x');
 
+  // --- Edge: NO config AND no image, just STLs (real Grinning God case)
+  w(['Grinning God', 'May Release', 'Enemies', 'Drakthul', 'drakthul.stl'], 'x');
+  w(['Grinning God', 'May Release', 'Enemies', 'Drakthul', 'l-wing.stl'], 'x');
+
+  // --- Edge: an unrecognised top-level folder (misplaced release)
+  w(
+    ['The Trench - Crustaceans of the Deep', 'Models', 'Snapjaw', 'config.orynt3d'],
+    model({ name: 'Snapjaw' })
+  );
+  img(['The Trench - Crustaceans of the Deep', 'Models', 'Snapjaw', 'snapjaw.png'], 900);
+  w(['The Trench - Crustaceans of the Deep', 'Models', 'Snapjaw', 'snapjaw.stl'], 'x');
+
   return {
     root,
     cleanup: () => fs.rmSync(root, { recursive: true, force: true }),
-    // 7 modelMode:0 configs + 1 config-less fallback leaf
-    expectedModelCount: 8,
+    // 8 modelMode:0 configs + 2 config-less fallback leaves (Orc Pack, Drakthul)
+    expectedModelCount: 10,
   };
 }

@@ -103,20 +103,36 @@ describe('buildIndex -- validation', () => {
     expect(() => build(dup)).toThrow(/duplicate/i);
   });
 
-  it('throws loudly when a thumbnail is missing (default)', () => {
-    expect(() => build(rawModels, { thumbnailExists: (id) => id !== 'drakanchor-1a2b3c4d' })).toThrow(
-      /thumbnail/i
+  it('uses the placeholder thumbnail (not a throw) for a model with no render', () => {
+    const { filterIndex, warnings } = build(rawModels, {
+      thumbnailExists: (id) => id !== 'drakanchor-1a2b3c4d',
+    });
+    const drak = filterIndex.models.find((m) => m.id === 'drakanchor-1a2b3c4d');
+    expect(drak.th).toBe('_placeholder.webp');
+    expect(warnings.missingThumb).toEqual(['drakanchor-1a2b3c4d']);
+    expect(filterIndex.models.find((m) => m.id === 'sir-roland-55aa55aa').th).toBe(
+      'sir-roland-55aa55aa.webp'
     );
   });
 
-  it('skips the thumbnail check when told to', () => {
-    expect(() =>
-      buildIndex(rawModels, { thumbnailExists: () => false, skipThumbCheck: true })
-    ).not.toThrow();
+  it('skipThumbCheck treats every model as having a real thumbnail', () => {
+    const { filterIndex, warnings } = buildIndex(rawModels, {
+      thumbnailExists: () => false,
+      skipThumbCheck: true,
+    });
+    expect(warnings.missingThumb).toEqual([]);
+    expect(filterIndex.models.every((m) => m.th === `${m.id}.webp`)).toBe(true);
+  });
+
+  it('flags an unrecognised subscription', () => {
+    const models = [{ ...rawModels[0], subscription: 'Some New Studio' }];
+    const { warnings } = build(models);
+    expect(warnings.unknownSubs).toEqual(['Some New Studio']);
   });
 
   it('works with default options (thumbnailExists defaults to always-true)', () => {
     expect(() => buildIndex(rawModels)).not.toThrow();
     expect(buildIndex(rawModels).filterIndex.models).toHaveLength(rawModels.length);
+    expect(buildIndex(rawModels).warnings.missingThumb).toEqual([]);
   });
 });

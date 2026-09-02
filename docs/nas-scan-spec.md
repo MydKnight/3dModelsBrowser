@@ -111,8 +111,10 @@ Pure functions, no fs. `scan-nas.mjs` does the walking + fs and calls these.
 
 **Is this dir a model?**
 - It has a `config.orynt3d` with `scancfg.modelMode === 0`, **or**
-- (fallback) it is a leaf dir containing >=1 mesh file
-  (`.stl .3mf .obj .chitubox .lys`) and >=1 image, with no `modelMode:2` config.
+- (fallback) it is a leaf dir (no subdirectories) with no `config.orynt3d`
+  containing >=1 mesh file (`.stl .3mf .obj .chitubox .lys`). An image is **not**
+  required -- Grinning God has no configs and some of its models ship no render
+  (2026-09-01 full scan found this; the image requirement was dropped).
 
 **`name`** -- first non-empty of:
 1. `modelmeta.name` (trimmed, if a non-empty string)
@@ -249,5 +251,5 @@ once this is Locked.
 |---|---|---|
 | N1 | Scale / support-type as filterable facets? | **Not in v1.** The pipeline has the data; revisit after the gallery works. `scan-nas.mjs` may still record them in `data/raw/models.json` for later use, but they do not become tags or facets. |
 | N2 | `release` display casing? | **Keep the folder name's casing** (`"Molten Hearts"`, `"A Light in the Shadow"`). When the value comes from a config `{key:"release"}` and is all-lowercase, title-case it as a best effort. |
-| N3 | Models with no resolvable image? | **Defer to `build-filter-index.mjs`** (step 3). `scan-nas.mjs` records `sourceImage: null` and reports the count; it does not drop them. |
+| N3 | Models with no resolvable image? | `scan-nas.mjs` records `sourceImage: null`, does not drop them. `build-filter-index.mjs` gives them `th: "_placeholder.webp"` (committed) and warns with the id list -- **does not hard-fail** (2026-09-01: the full scan had 171 imageless models, all Rescale/Loot; hard-failing would block the whole pipeline). It only hard-fails if `public/thumbnails/` doesn't exist at all. |
 | N4 | Keep the `data/raw/` intermediate? | **Keep it.** It is the NAS / no-NAS boundary and makes `build-filter-index.mjs` testable offline. |
