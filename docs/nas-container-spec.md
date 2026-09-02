@@ -128,13 +128,16 @@ refresh run re-parents its snapshot commit onto the new tip automatically
 2. `docker/Dockerfile` + `compose.nas.yml` + `nas-refresh.sh` +
    `lib/git-snapshot.sh` + `.dockerignore` + `.gitattributes` (LF for the
    scripts). **Done.**
-3. Test pass: `bash -n` on the scripts + the git-flow harness
-   (`docker/git-snapshot.test.mjs`, in `npm test`) -- **done**.
-   `docker build` + a container dry-run against the fixture + a `file://` bare
-   repo -- **pending** (Docker daemon not running in this session; see
-   `docker/README.md` "Local dry run").
+3. Test pass -- **done**. `bash -n` + the git-flow harness
+   (`docker/git-snapshot.test.mjs`, in `npm test`) + a full local dry run:
+   `docker build` (463 MB image), then `docker run` against the fixture tree +
+   a `file://` bare repo -- clone -> `npm ci` (sharp linux-x64, 22 s) -> scan
+   (10 models) -> thumbnails (6 written, 2 correctly skip-if-exists, 2
+   placeholder) -> build-filter-index -> one `chore(data): snapshot` commit
+   pushed. All green.
 4. Deploy to the QNAP: confirm the share path, first real run, capture
    wall-clock + sharp throughput. **This run produces the v2.0 snapshot.**
+   **<- next, needs the owner.**
 5. Commit the snapshot on this branch; `git merge --ff-only` back into
    `feat/astro-rewrite`.
 6. C2 incremental scan (per-subscription mtime skip, `--full` to force).

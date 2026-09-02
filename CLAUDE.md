@@ -21,11 +21,13 @@ to `feat/astro-rewrite` and that branch finishes (Netlify branch deploy ->
 `/code-review` -> merge to `main`). **Do not commit to `feat/astro-rewrite`
 while parked** (commit on the container branch; it fast-forwards back).
 
-Container status: scaffold + git-flow done and tested (`docker/`, 138 tests).
-Pending: `docker build` + dry-run (Docker daemon down this session) then the
-QNAP run. Also landed on the container branch: the **popcount fast-path for
-`facetCounts`** -- 3,882-model data has ~414 facet values and the old
-re-filter-per-value approach was 33 ms/cycle; now ~0.3 ms.
+Container status: scaffold + git-flow + a **full local dry run** all pass
+(`docker build`, then `docker run` against the fixture + a `file://` repo:
+clone -> npm ci -> scan -> thumbnails -> build-index -> snapshot commit pushed).
+138 tests. **Next: the QNAP run** (`docker/README.md`) -- that produces the v2.0
+snapshot. Also on this branch: the **popcount fast-path for `facetCounts`** --
+3,882-model data has ~414 facet values; old re-filter-per-value was 33 ms/cycle,
+now ~0.3 ms.
 
 Full Astro rewrite of a Next.js app that didn't scale to the real collection
 (~4k models, +100/month): unvirtualized grid, whole-metadata payload, and a

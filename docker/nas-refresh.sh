@@ -23,7 +23,7 @@ source "${SCRIPT_DIR}/lib/git-snapshot.sh"
 
 cd /repo
 if [ ! -d .git ]; then
-  echo "→ cloning ${GH_REPO} @ ${BRANCH}"
+  echo "→ cloning ${GH_REPO:-$REMOTE} @ ${BRANCH}"
   git clone --quiet --branch "$BRANCH" "$REMOTE" .
 else
   git remote set-url origin "$REMOTE"
