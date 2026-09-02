@@ -1,8 +1,15 @@
 # NAS Data Container -- Design Spec
 
-**Status:** Draft
-**Target:** feat/nas-data-container (a separate feature, branched off `main` after `feat/astro-rewrite` merges)
+**Status:** Locked -- **ACTIVE feature** as of 2026-09-02
+**Target:** `feat/nas-data-container`, branched off **`feat/astro-rewrite`** (it
+needs that branch's `scripts/` -- and astro-rewrite is parked, so the eventual
+merge back is a fast-forward)
 **Date:** 2026-09-02
+
+**Flow:** build the container here -> its first QNAP run generates the real v2.0
+snapshot and commits it on this branch -> `git merge --ff-only` this branch back
+into `feat/astro-rewrite` -> astro-rewrite finishes (Netlify branch deploy,
+`/code-review`, merge to `main`).
 
 ## Problem
 
@@ -91,7 +98,7 @@ refresh run re-parents its snapshot commit onto the new tip automatically
 
 | # | Question | Notes / leaning |
 |---|---|---|
-| C1 | **WebP storage: git or a bucket?** Recommitting ~500 MB of WebP per refresh grows the pack indefinitely (dangling blobs survive until `git gc`; ~6 GB/year of monthly snapshots). Alternative: container uploads WebP to Cloudflare R2, the site references `https://<bucket>/<id>.webp`, git holds only `src/data/*.json` (~1 MB). | **Leaning bucket** for the container era -- it's the clean long-term answer and R2 egress is free. Cost: an `<img src>` base-URL change in `GalleryIsland.tsx` + `[id].astro`, an R2 bucket, and an upload step in the entrypoint. If we stay on git, add a scheduled `git gc --aggressive` and a note that a BFG pass will eventually be needed. |
+| C1 | ~~WebP storage: git or a bucket?~~ **RESOLVED 2026-09-02: git for v1.** Owner accepts the render-commit risk (public storefront marketing images; STLs never published) and repo-size growth for now. Keeps the container simple -- no bucket, no `<img src>` changes. R2 stays a documented later optimization; add a scheduled `git gc` and expect an eventual `git filter-repo`/BFG pass. | git |
 | C2 | Incremental scan (per-subscription mtime skip)? NAS-local it matters less (a full scan is minutes not 40 min), but still nice for a cron job. | Build it here rather than on `feat/astro-rewrite` -- it's a NAS-side optimization. `--full` flag to force. |
 | C3 | Manual trigger only for v1, or wire cron immediately? | Manual for v1; prove the loop first. |
 | C4 | Keep `dev-bootstrap-raw.mjs` + the VPN `npm run data` path working as a fallback? | Yes -- keep both. The container is the primary path; the laptop path stays for when the NAS/container is down. |
@@ -114,17 +121,21 @@ refresh run re-parents its snapshot commit onto the new tip automatically
 
 ## Build order
 
-1. `make-thumbnails.mjs` -- add `--thumbs-dir` / `--detail-dir` (+ tests). Small;
-   could even land on `feat/astro-rewrite` since it's a pure param addition.
-2. Resolve C1 (git vs bucket) -- this shapes the entrypoint and possibly the
-   Astro components. Lock before writing the Dockerfile.
-3. `Dockerfile` + `compose.nas.yml` + `scripts/nas-refresh.sh`.
-4. Local test pass (build, scripts-in-container, git-flow).
-5. (If C1 = bucket) R2 bucket + upload step + `<img src>` base URL wired through
-   an env var / Astro config.
-6. Deploy to the QNAP, first real run, capture timings.
-7. C2 incremental scan.
-8. C3 cron, once the manual loop is proven.
+1. `make-thumbnails.mjs` -- add `--thumbs-dir` / `--detail-dir` / `--models`
+   flags (+ tests) so it can run fully NAS-local. Same for a `--out` sanity
+   check on the other two (`scan-nas.mjs` already has `--out`,
+   `build-filter-index.mjs` has `--raw`; add `--out-dir` there).
+2. `Dockerfile` + `compose.nas.yml` + `scripts/nas-refresh.sh` (the entrypoint).
+3. Local test pass: `docker build`; run the three scripts in the container
+   against `tests/fixtures/build-nas-fixture.mjs`; the git flow
+   (fetch/reset/re-parent/`--force-with-lease`/abort-on-INCOMPLETE) against a
+   throwaway bare repo.
+4. Deploy to the QNAP: bind-mount the real share, first real run, capture
+   wall-clock + sharp throughput. **This run produces the v2.0 snapshot.**
+5. Commit the snapshot on this branch; `git merge --ff-only` back into
+   `feat/astro-rewrite`.
+6. C2 incremental scan (per-subscription mtime skip, `--full` to force).
+7. C3 cron, once the manual loop is proven.
 
 ## Relationship to the other specs
 
