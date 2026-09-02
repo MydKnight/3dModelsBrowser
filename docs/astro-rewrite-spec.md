@@ -1,20 +1,16 @@
 # Astro Rewrite -- Design Spec
 
-**Status:** Locked -- **PARKED 2026-09-02** pending `feat/nas-data-container`
+**Status:** Locked -- **v2.0 built & verified, awaiting `/code-review` + merge**
 **Target:** v2.0
-**Date:** 2026-09-01 (open questions O1-O6 resolved same day)
+**Date:** 2026-09-01 (O1-O6 resolved); built through 2026-09-02
 
-**Parked (2026-09-02):** Steps 1-7 are code-complete (137 tests). The only thing
-left is committing a real data snapshot + `/code-review` + merge -- and
-generating that snapshot over SMB-over-VPN is a multi-hour, failure-prone slog
-(`make-thumbnails` alone is 2-5 h and a bad VPN moment corrupts it). Rather than
-grind through it, `feat/astro-rewrite` is frozen and `feat/nas-data-container`
-(branched off this branch -- see `docs/nas-container-spec.md`) builds the Docker
-container that runs the pipeline NAS-local. Its first run produces the real
-snapshot; then `feat/nas-data-container` fast-forward-merges back here and this
-branch finishes (Netlify branch deploy -> `/code-review` -> merge to `main`).
-**Do not add commits to `feat/astro-rewrite` while it is parked** -- that's what
-keeps the merge trivial.
+**2026-09-02:** Steps 1-7 done (138 tests). The data pipeline was too slow/flaky
+over SMB-over-VPN, so it was moved into a QNAP container
+(`docs/nas-container-spec.md`) -- which ran end-to-end on the NAS, produced the
+real **3,882-model snapshot**, and pushed it. `feat/nas-data-container`
+fast-forward-merged back; `feat/astro-rewrite` @ `16b9acf` now has everything.
+`astro build` = 3,883 pages, `index.html` 154 KB gzip; local preview fully
+functional. **Remaining:** `/code-review` -> merge to `main` -> repoint Netlify.
 
 **Amendment (build-order step 1, 2026-09-01):** `package.json` now has
 `"type": "module"` so new `.mjs`/`.ts` files (e.g. `build-filter-index.mjs`,

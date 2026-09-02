@@ -12,22 +12,29 @@ committed as a snapshot; Netlify builds from that snapshot with no NAS access.
 
 ## Status: v2.0 Astro rewrite -- PARKED (`feat/astro-rewrite`), container work active (`feat/nas-data-container`)
 
-**`feat/astro-rewrite` parked 2026-09-02** (steps 1-7 done). Generating the data
-snapshot over SMB-over-VPN is a multi-hour failure-prone slog, so
-**`feat/nas-data-container`** (branched off it) builds a Docker container that
-runs the pipeline NAS-local -- see **`docs/nas-container-spec.md`** (Locked).
-Its first QNAP run produces the v2.0 snapshot; then `git merge --ff-only` back
-to `feat/astro-rewrite` and that branch finishes (Netlify branch deploy ->
-`/code-review` -> merge to `main`). **Do not commit to `feat/astro-rewrite`
-while parked** (commit on the container branch; it fast-forwards back).
+**v2.0 built and verified.** `feat/astro-rewrite` @ `16b9acf` = Astro rewrite
+(steps 1-7) + the NAS-data container + the real **3,882-model snapshot** the
+container produced on the QNAP. `astro build` = 3,883 pages in ~18s;
+`index.html` 154 KB gzip + ~16 KB island JS; local preview confirmed fully
+functional (filter, sort, AND/OR, live counts, windowed grid, detail pages).
+138 tests.
 
-Container status: scaffold + git-flow + a **full local dry run** all pass
-(`docker build`, then `docker run` against the fixture + a `file://` repo:
-clone -> npm ci -> scan -> thumbnails -> build-index -> snapshot commit pushed).
-138 tests. **Next: the QNAP run** (`docker/README.md`) -- that produces the v2.0
-snapshot. Also on this branch: the **popcount fast-path for `facetCounts`** --
-3,882-model data has ~414 facet values; old re-filter-per-value was 33 ms/cycle,
-now ~0.3 ms.
+The container (`docs/nas-container-spec.md`, Locked) ran end-to-end on the QNAP:
+scan ~58x faster than VPN, thumbnails ~0.2 s/model, pushed its own
+`chore(data): snapshot` commit. `feat/nas-data-container` was the vehicle and is
+now == `feat/astro-rewrite`.
+
+**Remaining:** `/code-review` -> merge `feat/astro-rewrite` to `main` -> repoint
+production Netlify -> delete both feat branches -> set the QNAP `.env`
+`TARGET_BRANCH=main`.
+
+**Known gaps (container handles on the next refresh):**
+- "The Trench - Crustaceans of the Deep" resolves as a subscription (27 models) --
+  it's a misplaced Archvillain release; move it under `Archvillain Games/` on the NAS.
+- 194 models get the placeholder thumbnail (no render on the NAS). Some are
+  genuine (Grinning God, Unchained Immortals); check whether the Rescale Welcome
+  Pack ones actually have images `pickSourceImage` is missing.
+- Visual polish is explicitly phase 2.
 
 Full Astro rewrite of a Next.js app that didn't scale to the real collection
 (~4k models, +100/month): unvirtualized grid, whole-metadata payload, and a
