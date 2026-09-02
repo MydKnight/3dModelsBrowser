@@ -1,0 +1,11 @@
+# Force LF on everything textual -- shell scripts with CRLF break bash in the
+# Linux data container ("bad interpreter"), and the repo is built/run on both
+# Windows and Linux.
+* text=auto eol=lf
+
+*.webp binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
