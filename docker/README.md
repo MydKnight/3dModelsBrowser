@@ -17,25 +17,24 @@ rarely.
 
 ## One-time setup on the QNAP
 
-1. **GitHub token** -- a fine-grained PAT scoped to just this repo,
-   `Contents: Read and write`:
+Create a `.env` next to `compose.nas.yml` (Compose auto-loads it -- no `export`
+needed, survives reconnects). See `.env.example`:
 
-   ```sh
-   export GH_TOKEN=github_pat_xxxx
-   ```
+```sh
+cd /path/to/copied/docker
+cp .env.example .env && chmod 600 .env
+# then edit .env:
+#   GH_TOKEN     -- fine-grained PAT, this repo only, Contents: Read and write
+#   NAS_3DFILES  -- from:  find /share -maxdepth 3 -name '3D Files' -type d
+```
 
-2. **The share path** -- find the real filesystem path to `3D Files`:
-
-   ```sh
-   find /share -maxdepth 3 -name '3D Files' -type d
-   export NAS_3DFILES="/share/.../3D Files"    # what that prints
-   ```
+Never commit `.env`.
 
 ## Run a refresh
 
 ```sh
 cd /path/to/copied/docker
-docker compose -f compose.nas.yml build
+docker compose -f compose.nas.yml build          # first time / after script changes
 docker compose -f compose.nas.yml run --rm nas-refresh
 ```
 
