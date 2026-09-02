@@ -15,10 +15,12 @@ const dataPath = path.join(
 const hasData = fs.existsSync(dataPath);
 
 describe.skipIf(!hasData)('FilterEngine perf (real-volume data)', () => {
-  const index: FilterIndex = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+  const index: FilterIndex = hasData
+    ? JSON.parse(fs.readFileSync(dataPath, 'utf8'))
+    : { tags: [], subs: [], rels: [], models: [] };
   const engine = new FilterEngine(index);
 
-  it(`builds and filters ${hasData ? index.models.length : 0} models fast`, () => {
+  it(`builds and filters ${index.models.length} models fast`, () => {
     const state = {
       ...emptyState(),
       tags: [0, 1],

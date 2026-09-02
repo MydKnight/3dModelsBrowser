@@ -86,4 +86,23 @@ if snapshot_stage; then fail "run 4 should have found nothing to commit"; fi
 git fetch --quiet origin master
 [ "$(git rev-parse origin/master)" = "$BEFORE" ] || fail "run 4 pushed when it shouldn't have"
 
+# --- run 5: a commit landed ON TOP of the snapshot -> rewind + replay it ------
+git fetch --quiet origin master
+git checkout --quiet -B master origin/master
+[ "$(tip_subject)" = "$(git log -1 --pretty=%s)" ]   # tip is the snapshot
+echo "code v3" > app.js
+git add -A && git commit --quiet -m "feat: v3 on top of a snapshot"
+git push --quiet origin master
+
+snapshot_sync master
+git log --pretty=%s | grep -qxF "feat: v3 on top of a snapshot" || fail "run 5 lost the on-top commit"
+[ "$(tip_subject)" = "feat: v3 on top of a snapshot" ] || fail "run 5 tip should be the replayed commit, got $(tip_subject)"
+[ "$(snapshot_count)" -eq 0 ] || fail "run 5 should have dropped the snapshot, got $(snapshot_count)"
+make_data 6
+snapshot_unignore
+snapshot_stage || fail "run 5 saw no changes"
+snapshot_commit_and_push master 6
+[ "$(snapshot_count)" -eq 1 ] || fail "run 5: expected 1 snapshot after rebuild, got $(snapshot_count)"
+git log --pretty=%s | grep -qxF "feat: v3 on top of a snapshot" || fail "run 5 rebuild lost the code commit"
+
 echo "HARNESS OK"

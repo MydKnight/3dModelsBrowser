@@ -7,19 +7,32 @@ SNAPSHOT_SUBJECT_PREFIX="chore(data): snapshot"
 # Set by snapshot_sync: SHA of the previous snapshot commit we dropped ("" if none).
 PREV_SNAPSHOT=""
 
-# Sync the working tree to origin/<branch>, then -- if the tip commit is our
-# previous data snapshot -- drop it, so each run rebuilds ONE snapshot commit
-# that moves forward over whatever code commits are underneath.
+# Sync to origin/<branch>, then rewind past the most recent data-snapshot commit
+# (dropping it) and replay any code/doc commits that landed on top of it -- so a
+# run always rebuilds exactly ONE snapshot commit at the tip, over whatever code
+# is underneath, even if someone pushed a commit above the last snapshot.
 snapshot_sync() {
   local branch="$1"
   git fetch --quiet origin "$branch"
   git checkout --quiet -B "$branch" "origin/${branch}"
   PREV_SNAPSHOT=""
-  if git log -1 --pretty=%s | grep -qF "$SNAPSHOT_SUBJECT_PREFIX"; then
-    PREV_SNAPSHOT="$(git rev-parse HEAD)"
+
+  # newest commit whose subject starts with the snapshot prefix (grep finding
+  # nothing on a first run is normal -- don't let pipefail kill the script)
+  local snap
+  snap="$( { git log --pretty='%H%x09%s' | grep -F "	${SNAPSHOT_SUBJECT_PREFIX}" || true; } | head -1 | cut -f1)"
+  [ -z "$snap" ] && return 0
+
+  PREV_SNAPSHOT="$snap"
+  local replay
+  replay="$(git rev-list --reverse "${snap}..HEAD")"
+  if [ -n "$replay" ]; then
+    echo "  rewinding past the last snapshot and replaying $(echo "$replay" | wc -l) commit(s) on top of it"
+  else
     echo "  dropping previous snapshot commit to rebuild it"
-    git reset --hard --quiet HEAD~1
   fi
+  git reset --hard --quiet "${snap}~1"
+  for c in $replay; do git cherry-pick --quiet "$c"; done
 }
 
 # Un-ignore the generated snapshot files (they're gitignored for the laptop dev
