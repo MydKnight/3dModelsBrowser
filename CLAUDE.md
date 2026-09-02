@@ -20,18 +20,26 @@ Full Astro rewrite of a Next.js app that didn't scale to the real collection
 result sets + live per-facet counts + a windowed grid. Build time / bundle size
 are not the concern.
 
-Specs (both **Locked**): **`docs/astro-rewrite-spec.md`** (whole rewrite),
-**`docs/nas-scan-spec.md`** (the NAS scanner that replaced `extract-model-data.cjs`).
+Specs:
+- **`docs/astro-rewrite-spec.md`** (Locked) -- the whole rewrite.
+- **`docs/nas-scan-spec.md`** (Locked) -- the NAS scanner that replaced `extract-model-data.cjs`.
+- **`docs/nas-container-spec.md`** (Draft) -- run the data pipeline in a Docker
+  container ON the QNAP instead of over VPN. A **separate feature**
+  (`feat/nas-data-container`), branched off `main` *after* astro-rewrite merges.
+  Not started.
 
 **Build-order status** (see astro-rewrite-spec.md -> Build order):
-- Steps 1-7: **code done**, 133 tests, `astro build` = 945 pages in ~5s.
-- **Pending owner action:** run `npm run data` when the NAS link is responsive
-  (SMB latency was too variable to finish the full crawl in-session), then
-  commit `src/data/*.json` + `public/thumbnails|detail/` and un-gitignore the
-  two `src/data/*.json` files. Until then the frontend is built against a
-  944-model bootstrap (`scripts/dev-bootstrap-raw.mjs` from the old snapshot).
-- Step 8: Netlify branch deploy (gated on the data run).
-- Step 9: `/code-review`, squash, merge to `main`, delete branch.
+- Steps 1-7: **code done**, 137 tests, `astro build` = 945 pages in ~5s.
+  scan-nas + make-thumbnails hardened against SMB/VPN transient failures.
+- First real full scan (2026-09-02): 3,859 models (old script: 944). Surfaced +
+  fixed: imageless models -> placeholder, config-less STL leaves, misplaced
+  "The Trench" folder (owner to move under `Archvillain Games/`).
+- **Pending owner action:** a clean `npm run data` (scan -> thumbnails ->
+  build-filter-index) against a quiet NAS, then commit `src/data/*.json` +
+  `public/thumbnails|detail/` and un-gitignore the two json files. If the VPN
+  keeps losing, merge with the 944-model bootstrap as an interim snapshot and
+  let `feat/nas-data-container`'s first run produce the real one.
+- Step 8: Netlify branch deploy (gated on data). Step 9: `/code-review`, merge.
 
 ## Where This Lives in the Pipeline
 
