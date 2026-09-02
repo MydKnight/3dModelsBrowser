@@ -15,7 +15,9 @@ services:
     environment:
       GH_REPO: MydKnight/3dModelsBrowser
       GH_TOKEN: ${GH_TOKEN:?set GH_TOKEN}
-      TARGET_BRANCH: ${TARGET_BRANCH:-feat/astro-rewrite}
+      # First run targets feat/nas-data-container (ff-merges back to
+      # feat/astro-rewrite). Switch to main after astro-rewrite merges.
+      TARGET_BRANCH: ${TARGET_BRANCH:-feat/nas-data-container}
       ORYNT3D_DIR: /nas/3D Files
       GIT_NAME: ${GIT_NAME:-Shiloh Madsen}
       GIT_EMAIL: ${GIT_EMAIL:-shiloh.madsen@gmail.com}
