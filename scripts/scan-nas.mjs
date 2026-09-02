@@ -26,7 +26,7 @@ const DEFAULT_ROOT = '\\\\192.168.254.200\\data\\3D Files';
 const OUT_FILE = path.join(__dirname, '../data/raw/models.json');
 const CONFIG_NAME = 'config.orynt3d';
 const MESH_EXTS = new Set(['.stl', '.3mf', '.obj', '.chitubox', '.lys']);
-const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif']);
+// image-extension handling lives in scripts/lib/model-resolve.mjs (pickSourceImage)
 
 function readConfig(dir, hasConfigFile = true) {
   if (!hasConfigFile) return null;
@@ -96,12 +96,14 @@ export function scanTree(root, prior = new Map(), { onProgress } = {}) {
     const meshFiles = files.filter((f) => MESH_EXTS.has(path.extname(f.name).toLowerCase()));
     const imageNames = files.map((f) => f.name);
 
-    const isModelConfig = config?.scancfg?.modelMode === 0;
-    // A config-less leaf full of print files is a model whether or not it has a
-    // render (Grinning God has no config.orynt3d and some models ship no image).
-    const isFallbackModel = !config && subDirs.length === 0 && meshFiles.length > 0;
+    // A leaf full of print files is a model unless a config there explicitly
+    // marks it a container (modelMode 2). Covers: modelMode 0 configs, the
+    // no-config Grinning God case, and a stray/old config in a leaf that isn't
+    // modelMode 0 (the "silently dropped model" class -- code review 2026-09-02).
+    const isContainerConfig = config?.scancfg?.modelMode === 2;
+    const isLeafWithPrints = subDirs.length === 0 && meshFiles.length > 0;
 
-    if (isModelConfig || isFallbackModel) {
+    if (config?.scancfg?.modelMode === 0 || (isLeafWithPrints && !isContainerConfig)) {
       emit(absDir, relSegments, config, attrsHere, tagListsHere, imageNames);
       return; // models are leaves
     }

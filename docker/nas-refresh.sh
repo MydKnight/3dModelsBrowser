@@ -39,7 +39,12 @@ echo "→ npm ci"
 npm ci --omit=dev --no-audit --no-fund
 
 echo "→ scan-nas"        ; node scripts/scan-nas.mjs
-echo "→ make-thumbnails" ; node scripts/make-thumbnails.mjs
+# --force: on a fresh clone git stamps every committed *.webp with clone-time,
+# so the mtime skip check would never regenerate a thumbnail whose NAS source
+# was re-rendered (code review 2026-09-02). The container has local disk + CPU
+# to spare, and sharp is deterministic so unchanged sources -> identical bytes
+# -> no spurious commit. The laptop `npm run data` path keeps skip-if-exists.
+echo "→ make-thumbnails (--force)" ; node scripts/make-thumbnails.mjs --force
 echo "→ build-filter-index"
 node scripts/build-filter-index.mjs
 

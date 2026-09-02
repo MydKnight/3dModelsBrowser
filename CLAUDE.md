@@ -34,7 +34,12 @@ production Netlify -> delete both feat branches -> set the QNAP `.env`
 - 194 models get the placeholder thumbnail (no render on the NAS). Some are
   genuine (Grinning God, Unchained Immortals); check whether the Rescale Welcome
   Pack ones actually have images `pickSourceImage` is missing.
-- Visual polish is explicitly phase 2.
+
+**Phase 2 backlog:** `docs/astro-rewrite-spec.md` -> Phase 2 backlog. Visual
+polish, detail-page CLS, scroll-restore timing, `scan-nas` busy-wait backoff,
+thumbnail source manifest, incremental scan, container cron, WebP->R2. The
+2026-09-02 code review's non-blocking findings (#3/#4/#5) are captured there;
+#1/#2/#6 were fixed pre-merge.
 
 Full Astro rewrite of a Next.js app that didn't scale to the real collection
 (~4k models, +100/month): unvirtualized grid, whole-metadata payload, and a

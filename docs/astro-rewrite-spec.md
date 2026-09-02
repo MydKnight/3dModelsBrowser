@@ -450,6 +450,42 @@ Each step is test-first where it has a test row above. A step is not done until
 - Collections as a filter facet -- current UI already dropped collections; not
   reviving.
 
+## Phase 2 backlog (post-v2.0)
+
+Nothing here blocks the merge. Deferred deliberately.
+
+**Visual / UX**
+- Real styling pass -- v2.0 is functional-not-pretty by choice.
+- Detail-page `<img>` CLS: `[id].astro` and the grid Card hardcode square
+  `width`/`height`, but thumbnails keep source aspect (`sharp fit: 'inside'`),
+  so `/m/[id]` reflows on load (code review #4). Fix: emit real rendition
+  dimensions from `make-thumbnails`, or drop the attrs + constrain via CSS box.
+- Scroll-restore in `GalleryIsland` runs in a mount-only effect before the
+  `ResizeObserver` has measured, so on short viewports it clamps against the
+  1024x1200 defaults and shows the wrong row window until first scroll
+  (code review #5). Fix: restore after the first measurement.
+- Two-level tag grouping (O2).
+
+**Data pipeline**
+- `scan-nas` `readdirResilient` uses a synchronous busy-wait backoff (CPU spin,
+  up to ~9s per unreadable dir, blocks the progress callback) (code review #3).
+  Fix: bound the backoff much lower, or make the walk async.
+- `make-thumbnails` mtime skip is unreliable on a fresh clone (git stamps
+  clone-time). Container works around it with `--force` (full re-encode each
+  run, ~13 min, sharp is deterministic so no spurious commits). A committed
+  `{id: {mtime,size}}` source manifest would let both the container and the
+  laptop skip unchanged sources efficiently (code review #2).
+- Incremental scan: per-subscription top-level mtime skip, `--full` to force
+  (nas-container-spec C2). NAS-local a full scan is ~minutes so low priority.
+- Container cron / scheduled refresh (nas-container-spec C3).
+- WebP -> R2 bucket instead of git, once repo growth stings (nas-container-spec
+  C1). Each snapshot re-push is ~294 MB today.
+
+**Data quality (fix on the NAS, then a container re-run picks it up)**
+- Move `The Trench - Crustaceans of the Deep/` under `Archvillain Games/`.
+- ~194 models get the placeholder thumbnail; confirm which genuinely have no
+  render vs. a folder layout `pickSourceImage` misses.
+
 ## Resolved questions (all 2026-09-01)
 
 | # | Question | Resolution |

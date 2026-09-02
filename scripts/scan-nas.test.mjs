@@ -77,6 +77,17 @@ describe('scanTree', () => {
     expect(result.stats.unknownSubNames.has('The Trench - Crustaceans of the Deep')).toBe(true);
   });
 
+  it('emits a print-file leaf whose config has no modelMode (old/stray config)', () => {
+    const m = byName('Oldstyle Ogre');
+    expect(m).toBeDefined();
+    expect(m.tags).toContain('ogre');
+    expect(m.subscription).toBe('Rescale');
+  });
+
+  it('does NOT emit a print-file leaf whose config is modelMode:2 (container)', () => {
+    expect(result.models.some((m) => m.relPath.endsWith('ContainerLeaf'))).toBe(false);
+  });
+
   it('strips the scale/support token from an Archvillain folder name when config has one', () => {
     // config has name "Nullborn Champion" so it wins; folder is
     // "Nullborn Champion_32mm_ReadyToSlice"

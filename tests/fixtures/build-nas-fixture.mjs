@@ -143,10 +143,24 @@ export function buildNasFixture() {
   img(['The Trench - Crustaceans of the Deep', 'Models', 'Snapjaw', 'snapjaw.png'], 900);
   w(['The Trench - Crustaceans of the Deep', 'Models', 'Snapjaw', 'snapjaw.stl'], 'x');
 
+  // --- Edge: a leaf with a config that has NO modelMode (old/stray) + prints
+  //     -- must still be a model (code review 2026-09-02).
+  w(
+    ['Rescale', 'Molten Hearts', 'enemies', 'Oldstyle_Supports', 'config.orynt3d'],
+    cfg({ scancfg: { tags: { include: ['ogre'] } }, modelmeta: { name: 'Oldstyle Ogre' } })
+  );
+  img(['Rescale', 'Molten Hearts', 'enemies', 'Oldstyle_Supports', 'oldstyle.jpg'], 500);
+  w(['Rescale', 'Molten Hearts', 'enemies', 'Oldstyle_Supports', 'oldstyle.stl'], 'x');
+
+  // --- Edge: a modelMode:2 (container) config sitting in a print-file leaf
+  //     -- must be respected as a container, NOT emitted as a model.
+  w(['Rescale', 'Molten Hearts', 'enemies', 'ContainerLeaf', 'config.orynt3d'], container());
+  w(['Rescale', 'Molten Hearts', 'enemies', 'ContainerLeaf', 'stray.stl'], 'x');
+
   return {
     root,
     cleanup: () => fs.rmSync(root, { recursive: true, force: true }),
-    // 8 modelMode:0 configs + 2 config-less fallback leaves (Orc Pack, Drakthul)
-    expectedModelCount: 10,
+    // 8 modelMode:0 + 2 config-less leaves + 1 no-modelMode config leaf (Oldstyle)
+    expectedModelCount: 11,
   };
 }

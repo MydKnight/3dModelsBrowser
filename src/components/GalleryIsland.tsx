@@ -6,7 +6,7 @@
 // hand-rolled over grid-layout rather than @tanstack/virtual -- uniform-height
 // rows make it a few lines, and the math is already covered by tests.
 
-import { useComputed, useSignal, useSignalEffect } from '@preact/signals';
+import { useComputed, useSignal } from '@preact/signals';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import type { FilterIndex } from '../lib/filter-engine';
 import {
