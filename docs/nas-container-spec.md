@@ -121,16 +121,19 @@ refresh run re-parents its snapshot commit onto the new tip automatically
 
 ## Build order
 
-1. `make-thumbnails.mjs` -- add `--thumbs-dir` / `--detail-dir` / `--models`
-   flags (+ tests) so it can run fully NAS-local. Same for a `--out` sanity
-   check on the other two (`scan-nas.mjs` already has `--out`,
-   `build-filter-index.mjs` has `--raw`; add `--out-dir` there).
-2. `Dockerfile` + `compose.nas.yml` + `scripts/nas-refresh.sh` (the entrypoint).
-3. Local test pass: `docker build`; run the three scripts in the container
-   against `tests/fixtures/build-nas-fixture.mjs`; the git flow
-   (fetch/reset/re-parent/`--force-with-lease`/abort-on-INCOMPLETE) against a
-   throwaway bare repo.
-4. Deploy to the QNAP: bind-mount the real share, first real run, capture
+1. ~~script flags~~ **Not needed** -- the container clones the repo and runs
+   from it, so the scripts' default paths (`data/raw/`, `public/thumbnails|detail/`,
+   `src/data/`) are already right; only `ORYNT3D_DIR` (env) points at the mount.
+   `make-thumbnails` exit-code tuned so a couple of stragglers don't abort. **Done.**
+2. `docker/Dockerfile` + `compose.nas.yml` + `nas-refresh.sh` +
+   `lib/git-snapshot.sh` + `.dockerignore` + `.gitattributes` (LF for the
+   scripts). **Done.**
+3. Test pass: `bash -n` on the scripts + the git-flow harness
+   (`docker/git-snapshot.test.mjs`, in `npm test`) -- **done**.
+   `docker build` + a container dry-run against the fixture + a `file://` bare
+   repo -- **pending** (Docker daemon not running in this session; see
+   `docker/README.md` "Local dry run").
+4. Deploy to the QNAP: confirm the share path, first real run, capture
    wall-clock + sharp throughput. **This run produces the v2.0 snapshot.**
 5. Commit the snapshot on this branch; `git merge --ff-only` back into
    `feat/astro-rewrite`.

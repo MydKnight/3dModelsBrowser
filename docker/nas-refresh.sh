@@ -4,12 +4,19 @@
 # See docs/nas-container-spec.md.
 set -euo pipefail
 
-: "${GH_REPO:?set GH_REPO, e.g. MydKnight/3dModelsBrowser}"
-: "${GH_TOKEN:?set GH_TOKEN (fine-grained PAT, contents:write on GH_REPO)}"
 : "${ORYNT3D_DIR:?set ORYNT3D_DIR to the mounted 3D Files path (e.g. /nas/3D Files)}"
 export ORYNT3D_DIR
 BRANCH="${TARGET_BRANCH:-feat/astro-rewrite}"
-REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
+
+# GH_REMOTE overrides the remote URL (used by the local dry-run test with a
+# file:// bare repo). Otherwise build it from GH_REPO + GH_TOKEN.
+if [ -n "${GH_REMOTE:-}" ]; then
+  REMOTE="$GH_REMOTE"
+else
+  : "${GH_REPO:?set GH_REPO, e.g. MydKnight/3dModelsBrowser}"
+  : "${GH_TOKEN:?set GH_TOKEN (fine-grained PAT, contents:write on GH_REPO)}"
+  REMOTE="https://x-access-token:${GH_TOKEN}@github.com/${GH_REPO}.git"
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/lib/git-snapshot.sh"

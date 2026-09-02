@@ -12,14 +12,20 @@ committed as a snapshot; Netlify builds from that snapshot with no NAS access.
 
 ## Status: v2.0 Astro rewrite -- PARKED (`feat/astro-rewrite`), container work active (`feat/nas-data-container`)
 
-**Parked 2026-09-02.** Steps 1-7 done (137 tests). The only thing left is a real
-data snapshot + `/code-review` + merge, and generating that snapshot over
-SMB-over-VPN is a multi-hour failure-prone slog. So `feat/astro-rewrite` is
-frozen and `feat/nas-data-container` (branched off it) builds a Docker container
-that runs the pipeline NAS-local -- see **`docs/nas-container-spec.md`** (Locked,
-active). Its first QNAP run produces the snapshot; then it `--ff-only` merges
-back and astro-rewrite finishes. **Do not commit to `feat/astro-rewrite` while
-parked.**
+**`feat/astro-rewrite` parked 2026-09-02** (steps 1-7 done). Generating the data
+snapshot over SMB-over-VPN is a multi-hour failure-prone slog, so
+**`feat/nas-data-container`** (branched off it) builds a Docker container that
+runs the pipeline NAS-local -- see **`docs/nas-container-spec.md`** (Locked).
+Its first QNAP run produces the v2.0 snapshot; then `git merge --ff-only` back
+to `feat/astro-rewrite` and that branch finishes (Netlify branch deploy ->
+`/code-review` -> merge to `main`). **Do not commit to `feat/astro-rewrite`
+while parked** (commit on the container branch; it fast-forwards back).
+
+Container status: scaffold + git-flow done and tested (`docker/`, 138 tests).
+Pending: `docker build` + dry-run (Docker daemon down this session) then the
+QNAP run. Also landed on the container branch: the **popcount fast-path for
+`facetCounts`** -- 3,882-model data has ~414 facet values and the old
+re-filter-per-value approach was 33 ms/cycle; now ~0.3 ms.
 
 Full Astro rewrite of a Next.js app that didn't scale to the real collection
 (~4k models, +100/month): unvirtualized grid, whole-metadata payload, and a
