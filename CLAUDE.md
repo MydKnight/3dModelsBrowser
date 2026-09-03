@@ -18,16 +18,16 @@ path, ~0.3 ms/cycle), Newest/Name/Release sort, windowed grid,
 static `/m/[id]` detail pages with View Transitions. `astro build` = 3,883 pages
 in ~18s; `index.html` 154 KB gzip + ~16 KB island JS. Code-reviewed.
 
-**In flight -- filter redesign (`feat/filter-redesign`, `docs/filter-redesign-spec.md`):**
-the flat sidebar (231-tag cloud + 175 release checkboxes + AND/OR toggle) is
-replaced by a slide-in overlay drawer, a human-maintained tag taxonomy
-(`src/data/tag-taxonomy.json` -> CR / Race / Class / Gender / Creature Type /
-Size / Format / Everything Else dropdowns, plus a dirty-variant alias map), and
-an active-filter chip bar on the gallery. Tag semantics are now **OR within a
-dropdown, AND across dropdowns** (no more `tagMode` / `?tagmode=`). Taxonomy
-owner-reviewed 2026-09-03 (231 -> 205 tags; Kind/CR/Size/Gender/Creature Type/
-Race/Class/Format + a 10-tag Everything Else). 164 tests, verified live.
-Remaining: `/code-review` + merge.
+**Filter redesign shipped to `main` 2026-09-03** (`1e3fec5`,
+`docs/filter-redesign-spec.md`): the flat sidebar (231-tag cloud + 175 release
+checkboxes + AND/OR toggle) is replaced by a slide-in overlay drawer, a
+human-maintained tag taxonomy (`src/data/tag-taxonomy.json` -> Kind / CR / Size /
+Gender / Creature Type / Race / Class / Format dropdowns + a computed Everything
+Else, plus a dirty-variant alias map; 231 -> 205 tags), and an active-filter
+chip bar on the gallery. Tag semantics are now **OR within a dropdown, AND
+across dropdowns** (no more `tagMode` / `?tagmode=`). 165 tests, code-reviewed.
+Phase 2 stub: drawer slide animation, deep-link first-paint settle, gallery
+visual pass.
 
 Data is produced by the **QNAP container** (`docs/nas-container-spec.md`):
 `scan-nas` -> `make-thumbnails` -> `build-filter-index`, NAS-local, pushing one
@@ -61,9 +61,9 @@ result sets + live per-facet counts + a windowed grid. Build time / bundle size
 are not the concern.
 
 Specs:
-- **`docs/filter-redesign-spec.md`** -- **Locked, in flight** on
-  `feat/filter-redesign`. Drawer + tag taxonomy + chip bar. Supersedes
-  astro-rewrite-spec O2 (the AND/OR toggle). Phase 2 stub: gallery visual pass.
+- **`docs/filter-redesign-spec.md`** -- **Implemented** 2026-09-03. Drawer + tag
+  taxonomy + chip bar. Supersedes astro-rewrite-spec O2 (the AND/OR toggle).
+  Phase 2 stub: drawer animation, deep-link settle, gallery visual pass.
 - **`docs/astro-rewrite-spec.md`** -- the whole rewrite. Has the **Phase 2 backlog**.
 - **`docs/nas-scan-spec.md`** -- the NAS scanner that replaced `extract-model-data.cjs`.
 - **`docs/nas-container-spec.md`** -- the QNAP data container. C2 (incremental
@@ -155,20 +155,19 @@ static Astro needs none), then a **clear-cache** redeploy.
   windowing keeps DOM bounded; facet counts are ~0.3 ms).
 - Arrow-key prev/next on detail pages is global newest-first order, not the
   active filter's order (spec O1 accepted this for v1).
-- **Filter redesign (`feat/filter-redesign`):** code done + verified + taxonomy
-  owner-reviewed. Not merged -- needs `/code-review` -> squash -> merge -> delete
-  branch. Drawer open/close is a plain show/hide (`hidden` attr) -- the slide
-  animation is in the filter-redesign Phase 2 stub. Tag grouping is
+- **Filter redesign (shipped 2026-09-03):** drawer open/close is a plain
+  show/hide (`hidden` attr) -- the slide animation + the deep-link first-paint
+  settle are in the filter-redesign Phase 2 stub. Tag grouping is
   `src/data/tag-taxonomy.json`; edit + `node scripts/build-filter-index.mjs` to
-  re-bucket, no code change.
+  re-bucket, no code change. Watch that "Everything Else" stays small as tags
+  land.
 - **Phase 2 backlog:** `docs/astro-rewrite-spec.md` -> Phase 2 backlog
   (styling, detail-page CLS, scroll-restore timing, scan busy-wait, thumbnail
   source manifest, incremental scan, container cron, WebP->R2).
 
 ## Next Actions
 
-1. **Filter redesign:** `/code-review feat/filter-redesign` -> squash -> merge
-   -> delete branch. (Code done, taxonomy owner-reviewed 2026-09-03.)
+1. Confirm the Netlify production deploy of `1e3fec5` (filter redesign) is green.
 2. Set the QNAP `.env` `TARGET_BRANCH=main` (before the next container run --
    `feat/nas-data-container` is deleted).
 3. Fix the two data-quality items on the NAS, then `docker compose -f
@@ -176,7 +175,8 @@ static Astro needs none), then a **clear-cache** redeploy.
 4. Local: `git branch -D feat/astro-rewrite feat/nas-data-container`;
    `rm -rf public/images` when convenient.
 5. Phase 2 work as prioritised (`docs/astro-rewrite-spec.md` -> Phase 2 backlog;
-   `docs/filter-redesign-spec.md` -> Phase 2 stub for the gallery visual pass).
+   `docs/filter-redesign-spec.md` -> Phase 2 stub: drawer animation, deep-link
+   settle, gallery visual pass).
 
 ## Test Coverage Standard
 

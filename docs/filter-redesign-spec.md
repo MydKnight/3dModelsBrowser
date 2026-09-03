@@ -1,9 +1,9 @@
 # Filter Redesign -- Design Spec
 
-**Status:** Locked -- built & verified 2026-09-03 (branch `feat/filter-redesign`).
-Taxonomy owner-reviewed 2026-09-03 (`docs/tag-taxonomy-draft.md`). Remaining:
-`/code-review` + merge (step 9). Refining group membership later is a config edit
-+ `node scripts/build-filter-index.mjs`, no code change.
+**Status:** Implemented -- shipped to `main` 2026-09-03 (squash `1e3fec5`,
+Netlify auto-deploy). Taxonomy owner-reviewed 2026-09-03 (`docs/tag-taxonomy-draft.md`).
+Refining group membership later is a config edit + `node
+scripts/build-filter-index.mjs`, no code change. Phase 2 stub below.
 **Target:** v2.1
 **Date:** 2026-09-03
 
@@ -236,7 +236,8 @@ run at creation time.
 7. `src/pages/index.astro` style rewrite. -- **done**
 8. Docs (this file, astro-rewrite-spec O2, CLAUDE.md, README, REPO_AUDIT.md);
    owner taxonomy review. -- **done 2026-09-03**
-9. `/code-review`, squash, merge to `main`, delete branch. -- **pending**
+9. `/code-review` (3 minor findings fixed), squash, merge to `main`, delete
+   branch. -- **done 2026-09-03 (`1e3fec5`)**
 
 ## Verification
 
