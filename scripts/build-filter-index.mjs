@@ -12,12 +12,21 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { SUBSCRIPTION_CANON } from './lib/model-resolve.mjs';
+import {
+  applyAliases,
+  assignGroups,
+  loadTaxonomy,
+  orderTags,
+  validateTaxonomy,
+} from './lib/tag-taxonomy.mjs';
 
 const KNOWN_SUBS = new Set(Object.values(SUBSCRIPTION_CANON));
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_RAW = path.join(__dirname, '../data/raw/models.json');
 const THUMBS_DIR = path.join(__dirname, '../public/thumbnails');
 const OUT_DIR = path.join(__dirname, '../src/data');
+const TAXONOMY_FILE = path.join(__dirname, '../src/data/tag-taxonomy.json');
+const EMPTY_TAXONOMY = { aliases: {}, drop: [], groups: [] };
 
 function argValue(flag) {
   const i = process.argv.indexOf(flag);
@@ -33,13 +42,23 @@ const recencyKey = (m) => m.firstSeenTs ?? m.addedTs ?? 0;
  */
 export const PLACEHOLDER_THUMB = '_placeholder.webp';
 
-export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbCheck = false } = {}) {
+export function buildIndex(
+  rawModels,
+  { thumbnailExists = () => true, skipThumbCheck = false, taxonomy = EMPTY_TAXONOMY } = {}
+) {
   const seen = new Set();
   for (const m of rawModels) {
     if (!m.id) throw new Error(`build-filter-index: model has no id: ${JSON.stringify(m).slice(0, 200)}`);
     if (seen.has(m.id)) throw new Error(`build-filter-index: duplicate id: ${m.id}`);
     seen.add(m.id);
   }
+
+  // Tag taxonomy (docs/filter-redesign-spec.md D3/D6): validate, then collapse
+  // dirty variants onto canonical tags and drop noise tags before the tag
+  // dictionary is built, so aliased models merge onto one tag id.
+  const rawTagList = [...new Set(rawModels.flatMap((m) => m.tags ?? []))];
+  const taxonomyWarnings = validateTaxonomy(taxonomy, rawTagList);
+  rawModels = applyAliases(rawModels, taxonomy.aliases ?? {}, taxonomy.drop ?? []);
 
   // A model with no rendered `<id>.webp` (its NAS folder had no image, or the
   // pipeline hasn't generated one) still belongs in the gallery -- findable by
@@ -59,9 +78,10 @@ export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbC
     if (m.subscription) subSet.add(m.subscription);
     if (m.release) relSet.add(m.release);
   }
-  const tags = [...tagSet].sort();
+  const tags = orderTags(tagSet, taxonomy);
   const subs = [...subSet].sort();
   const rels = [...relSet].sort();
+  const tagGroups = assignGroups(tags, taxonomy);
   const tagIx = new Map(tags.map((t, i) => [t, i]));
   const subIx = new Map(subs.map((s, i) => [s, i]));
   const relIx = new Map(rels.map((r, i) => [r, i]));
@@ -89,13 +109,14 @@ export function buildIndex(rawModels, { thumbnailExists = () => true, skipThumbC
   }
 
   return {
-    filterIndex: { tags, subs, rels, models },
+    filterIndex: { tags, subs, rels, tagGroups, models },
     details,
     warnings: {
       missingThumb: [...missingThumb],
       unknownSubs: [...new Set(sorted.map((m) => m.subscription))].filter(
         (s) => !KNOWN_SUBS.has(s)
       ),
+      taxonomy: taxonomyWarnings,
     },
   };
 }
@@ -115,10 +136,17 @@ export function main() {
     process.exit(1);
   }
 
+  const hasTaxonomy = fs.existsSync(TAXONOMY_FILE);
+  if (!hasTaxonomy) {
+    console.log(`⚠️  ${TAXONOMY_FILE} not found -- every tag falls into "Everything Else"`);
+  }
+  const taxonomy = hasTaxonomy ? loadTaxonomy(TAXONOMY_FILE) : EMPTY_TAXONOMY;
+
   let result;
   try {
     result = buildIndex(rawModels, {
       skipThumbCheck,
+      taxonomy,
       thumbnailExists: (id) => fs.existsSync(path.join(THUMBS_DIR, `${id}.webp`)),
     });
   } catch (err) {
@@ -130,14 +158,22 @@ export function main() {
   fs.writeFileSync(path.join(OUT_DIR, 'filter-index.json'), JSON.stringify(result.filterIndex));
   fs.writeFileSync(path.join(OUT_DIR, 'details.json'), JSON.stringify(result.details));
 
-  const { tags, subs, rels, models } = result.filterIndex;
+  const { tags, subs, rels, tagGroups, models } = result.filterIndex;
   console.log(
     `✅ filter-index.json: ${models.length} models, ${tags.length} tags, ` +
       `${subs.length} subscriptions, ${rels.length} releases`
   );
+  console.log(
+    `   tag groups: ${tagGroups.map((g) => `${g.label} (${g.tagIds.length})`).join(', ')}`
+  );
   console.log(`✅ details.json: ${Object.keys(result.details).length} entries`);
 
-  const { missingThumb, unknownSubs } = result.warnings;
+  const { missingThumb, unknownSubs, taxonomy: taxonomyWarnings } = result.warnings;
+  if (taxonomyWarnings?.length) {
+    console.log(`⚠️  taxonomy (${taxonomyWarnings.length}) -- edit src/data/tag-taxonomy.json:`);
+    for (const w of taxonomyWarnings.slice(0, 20)) console.log(`     ${w}`);
+    if (taxonomyWarnings.length > 20) console.log(`     ...and ${taxonomyWarnings.length - 20} more`);
+  }
   if (missingThumb.length) {
     console.log(`⚠️  ${missingThumb.length} model(s) have no render -> placeholder thumbnail`);
     for (const id of missingThumb.slice(0, 10)) console.log(`     ${id}`);

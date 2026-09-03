@@ -10,15 +10,16 @@ writes per model and makes it filterable from anywhere.
 
 | Component | Status |
 |---|---|
-| Filter island (search, sort, AND/OR tags, live per-facet counts) | ✅ |
+| Filter island (search, sort, live per-facet counts) | ✅ |
+| Filter drawer + tag taxonomy (grouped dropdowns) + active-filter chips | 🔬 built & verified on `feat/filter-redesign`, taxonomy pending owner review |
 | Windowed results grid (bounded DOM at ~4k models) | ✅ |
 | Static per-model detail pages + View Transitions | ✅ |
 | Data pipeline (NAS scan -> WebP thumbnails -> filter index) | ✅ runs in a Docker container on the QNAP |
-| Tests | 140 (Vitest) |
+| Tests | 164 (Vitest) |
 | Visual polish | Phase 2 -- functional, not pretty |
 
 Design docs: `docs/astro-rewrite-spec.md` (with a **Phase 2 backlog**),
-`docs/nas-scan-spec.md`, `docs/nas-container-spec.md`.
+`docs/filter-redesign-spec.md`, `docs/nas-scan-spec.md`, `docs/nas-container-spec.md`.
 
 **Personal tool.** No model files are published (that would be the legal issue) --
 only the creators' public preview renders, resized to WebP.
@@ -53,9 +54,13 @@ npm run build && npm run preview   # production build, served locally
 
 ## Roadmap
 
-`docs/astro-rewrite-spec.md` -> **Phase 2 backlog**: styling pass, detail-page
-CLS fix, two-level tag grouping, incremental scan, container cron, moving WebP
-to an R2 bucket.
+- **Filter redesign** (`docs/filter-redesign-spec.md`) -- in flight on
+  `feat/filter-redesign`: slide-in filter drawer, human-maintained tag taxonomy
+  (grouped dropdowns), active-filter chips. Awaiting an owner pass over the
+  taxonomy content before merge.
+- `docs/astro-rewrite-spec.md` -> **Phase 2 backlog**: styling pass, detail-page
+  CLS fix, two-level tag grouping, incremental scan, container cron, moving WebP
+  to an R2 bucket.
 
 ## License
 

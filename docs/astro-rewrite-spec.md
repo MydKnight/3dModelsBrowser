@@ -490,7 +490,7 @@ Nothing here blocks the merge. Deferred deliberately.
 | # | Question | Resolution |
 |---|---|---|
 | O1 | Modal or full nav to `/m/[id]`? | View Transitions (`<ClientRouter />`) + `transition:persist` island; no modal. |
-| O2 | OR toggle within tag group? | AND/OR toggle, default AND, mode in URL. Two-level grouping rejected for v2.0 (engine-ready, UI deferred). |
+| O2 | OR toggle within tag group? | AND/OR toggle, default AND, mode in URL. **Superseded 2026-09-03 by `docs/filter-redesign-spec.md` D4:** the global toggle and `?tagmode=` are removed; tag semantics are now OR-within-taxonomy-group, AND-across-groups (matching subs/rels). Two-level grouping still deferred (engine-ready). |
 | O3 | Default sort order? | Newest-first via fs birthtime (`addedTs`) + preserved `firstSeenTs`; sort control offers Newest / Name / Release. |
 | O4 | Grid: virtualization or content-visibility + cap? | True row windowing, fixed-height rows, no pagination. Hand-rolled over the unit-tested `grid-layout.ts` rather than `@tanstack/virtual` (uniform heights make it trivial). |
 | O5 | Generate WebP thumbs? | Two committed WebP sizes (400px grid, 900px detail) via `sharp` in the extract step; `git rm --cached` the original PNGs. |

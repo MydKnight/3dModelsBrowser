@@ -1,0 +1,106 @@
+{
+  "_doc": "Human-maintained tag taxonomy for the filter drawer. See docs/filter-redesign-spec.md D3 and docs/tag-taxonomy-draft.md. 'aliases' maps a dirty/equivalent variant to its canonical tag (applied before the tag dictionary is built). 'drop' removes a tag from the UI entirely. 'groups[].tags' order = display order in that dropdown. Any canonical tag not listed in a group falls into 'Everything Else'.",
+  "aliases": {
+    "1/2": "cr1/2",
+    "5": "cr5",
+    "7": "cr7",
+    "17": "cr17",
+    "c1": "cr1",
+    "artificier": "artificer",
+    "cthulufolk": "cthulhufolk",
+    "dreagon": "dragon",
+    "figher": "fighter",
+    "figter": "fighter",
+    "knigh": "knight",
+    "huma": "humanoid",
+    "humanioid": "humanoid",
+    "humanoi": "humanoid",
+    "humnoid": "humanoid",
+    "humanoid cr9": "humanoid",
+    "mdium": "medium",
+    "medum": "medium",
+    "mle": "male",
+    "male3": "male",
+    "merrow": "merfolk",
+    "sorcorer": "sorcerer",
+    "gensai": "genasi",
+    "fire elemi": "elemental",
+    "selvaneri": "selvanei"
+  },
+  "drop": ["32mm"],
+  "groups": [
+    {
+      "key": "kind",
+      "label": "Kind",
+      "tags": [
+        "hero", "npc", "monster", "building", "terrain", "diorama", "environment",
+        "scatter", "prop", "bestiary"
+      ]
+    },
+    {
+      "key": "cr",
+      "label": "Challenge Rating",
+      "tags": [
+        "cr1/8", "cr1/4", "cr1/2", "cr1", "cr2", "cr3", "cr4", "cr5", "cr6", "cr7",
+        "cr8", "cr9", "cr10", "cr11", "cr12", "cr13", "cr14", "cr15", "cr16", "cr17",
+        "cr18", "cr20", "cr21", "cr22", "cr23", "cr24", "cr25", "cr26", "cr27", "cr30"
+      ]
+    },
+    {
+      "key": "size",
+      "label": "Size",
+      "tags": ["tiny", "small", "medium", "large", "huge", "gargantuan", "colossal"]
+    },
+    {
+      "key": "gender",
+      "label": "Gender",
+      "tags": ["female", "male"]
+    },
+    {
+      "key": "type",
+      "label": "Creature Type",
+      "tags": [
+        "aberration", "abomination", "angel", "beast", "bugbear", "celestial",
+        "construct", "cyborg", "demon", "devil", "dinosaur", "dragon", "elemental",
+        "fey", "fiend", "genie", "giant", "gnoll", "goblin", "goblinoid", "golem",
+        "gorgon", "hobgoblin", "insect", "kobold", "lizard", "minotaur",
+        "monstrosity", "nymph", "ogre", "oni", "ooze", "orc", "owlbear", "plant",
+        "primordial", "rakshasa", "shapechanger", "shark", "spirit", "swarm",
+        "titan", "treant", "troglodyte", "troll", "undead", "vampire", "wereraven",
+        "werewolf", "wyvern", "god", "divine being", "ancient divinity"
+      ]
+    },
+    {
+      "key": "race",
+      "label": "Race",
+      "tags": [
+        "aasimar", "apefolk", "astral walker", "beastfolk", "birdfolk", "catfolk",
+        "centaur", "changeling", "cthulhufolk", "draconian", "dragonborn",
+        "dragonkin", "drow", "durk", "dwarf", "eladrin", "elf", "firbolg",
+        "fireborn", "frogfolk", "genasi", "githyanki", "gnome", "half-dragon",
+        "half-elf", "half-giant", "half-orc", "halfling", "hippofolk", "human",
+        "humanoid", "leonin", "lizardfolk", "merfolk", "mermillian", "molefolk",
+        "mongrelfolk", "mousefolk", "nosmeni", "ratfolk", "sahuagin", "satyr",
+        "selvanei", "serpentfolk", "shifter", "slothfolk", "sun elf", "tabaxi",
+        "tiefling", "toadfolk", "treefolk", "turtlefolk", "warforged"
+      ]
+    },
+    {
+      "key": "class",
+      "label": "Class",
+      "tags": [
+        "alchemist", "artificer", "barbarian", "bard", "battle master", "battlemage",
+        "beastmaster", "berserker", "cleric", "conjurer", "demon slayer", "druid",
+        "duelist", "engineer", "fighter", "gunslinger", "hunter", "knight", "mage",
+        "mercenary", "merchant", "monk", "oracle", "paladin", "priest", "psion",
+        "ranger", "rogue", "samurai", "scholar", "shaman", "sorcerer", "squire",
+        "warlock", "warrior", "wizard"
+      ]
+    },
+    {
+      "key": "format",
+      "label": "Format",
+      "tags": ["resin", "fdm", "pre-supported", "bust"]
+    }
+  ]
+}

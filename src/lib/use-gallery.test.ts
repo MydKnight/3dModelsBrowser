@@ -4,6 +4,10 @@ import { createGallery } from './use-gallery';
 
 const index: FilterIndex = {
   tags: ['elf', 'mage', 'undead'],
+  tagGroups: [
+    { key: 'race', label: 'Race', tagIds: [0, 2] },
+    { key: 'class', label: 'Class', tagIds: [1] },
+  ],
   subs: ['Loot Studios', 'Rescale'],
   rels: ['Molten Hearts', 'The Fey Court'],
   models: [
@@ -34,13 +38,42 @@ describe('createGallery', () => {
     g.dispose();
   });
 
-  it('AND/OR mode switch', () => {
+  it('tags in the same group OR together; across groups they AND', () => {
     const g = createGallery(index);
-    g.toggleTag(0);
-    g.toggleTag(2); // elf AND undead -> none
-    expect(ids(g)).toEqual([]);
-    g.setTagMode('OR'); // elf OR undead
+    g.toggleTag(0); // elf (race)
+    g.toggleTag(2); // undead (race) -> elf OR undead
     expect(ids(g)).toEqual(['a', 'b', 'c']);
+    g.toggleTag(1); // mage (class) -> (elf OR undead) AND mage
+    expect(ids(g)).toEqual(['a']);
+    g.dispose();
+  });
+
+  it('activeChips does not prefix a chip with the "other" (Everything Else) group label', () => {
+    const ix: FilterIndex = {
+      ...index,
+      tags: ['elf', 'goblin'],
+      tagGroups: [
+        { key: 'race', label: 'Race', tagIds: [0] },
+        { key: 'other', label: 'Everything Else', tagIds: [1] },
+      ],
+      models: [{ id: 'x', n: 'X', nl: 'x', t: [0, 1], s: 0, r: 0, th: 'x.webp' }],
+    };
+    const g = createGallery(ix);
+    g.toggleTag(0);
+    g.toggleTag(1);
+    expect(g.activeChips.value.map((c) => c.label)).toEqual(['Race: elf', 'goblin']);
+    g.dispose();
+  });
+
+  it('activeChips lists one entry per filter and each removes just itself', () => {
+    const g = createGallery(index);
+    g.toggleTag(0); // Race: elf
+    g.toggleSub(1); // Rescale
+    g.setQuery('elf');
+    expect(g.activeChips.value.map((c) => c.label)).toEqual(['"elf"', 'Race: elf', 'Rescale']);
+    g.activeChips.value.find((c) => c.kind === 'sub')!.remove();
+    expect(g.state.value.subs).toEqual([]);
+    expect(g.state.value.tags).toEqual([0]);
     g.dispose();
   });
 
@@ -60,6 +93,14 @@ describe('createGallery', () => {
     expect(g.isFiltered.value).toBe(false);
     expect(g.state.value.sort).toBe('name');
     expect(ids(g)).toEqual(['a', 'b', 'c', 'd']);
+    g.dispose();
+  });
+
+  it('hydrate() replaces state from a query string after creation', () => {
+    const g = createGallery(index);
+    expect(ids(g)).toEqual(['a', 'b', 'c', 'd']);
+    g.hydrate('?subs=Rescale');
+    expect(ids(g)).toEqual(['c', 'd']);
     g.dispose();
   });
 

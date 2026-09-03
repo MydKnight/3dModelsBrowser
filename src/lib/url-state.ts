@@ -3,7 +3,7 @@
 // serialize as their string *values*, not dictionary ids, so a shared URL keeps
 // working after a data refresh reassigns ids. Unknown values are dropped.
 
-import type { FilterState, SortMode, TagMode } from './filter-engine';
+import type { FilterState, SortMode } from './filter-engine';
 import { emptyState } from './filter-engine';
 
 interface Dictionaries {
@@ -32,7 +32,6 @@ export function stateToQuery(state: FilterState, dict: Dictionaries): string {
   const subs = idsToValues(state.subs, dict.subs);
   const rels = idsToValues(state.rels, dict.rels);
   if (tags.length) p.set('tags', tags.join(','));
-  if (state.tags.length && state.tagMode === 'OR') p.set('tagmode', 'or');
   if (subs.length) p.set('subs', subs.join(','));
   if (rels.length) p.set('rels', rels.join(','));
   if (state.sort !== 'newest') p.set('sort', state.sort);
@@ -49,13 +48,11 @@ export function queryToState(qs: string, dict: Dictionaries): FilterState {
       .filter(Boolean);
 
   const sortParam = p.get('sort') as SortMode | null;
-  const tagMode: TagMode = p.get('tagmode') === 'or' ? 'OR' : 'AND';
 
   return {
     ...emptyState(),
     query: p.get('q') ?? '',
     tags: valuesToIds(split('tags'), dict.tags),
-    tagMode,
     subs: valuesToIds(split('subs'), dict.subs),
     rels: valuesToIds(split('rels'), dict.rels),
     sort: sortParam && SORTS.includes(sortParam) ? sortParam : 'newest',

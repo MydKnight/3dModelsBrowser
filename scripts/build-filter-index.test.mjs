@@ -42,6 +42,62 @@ describe('buildIndex -- dictionaries', () => {
   });
 });
 
+describe('buildIndex -- tag taxonomy', () => {
+  const taxonomy = {
+    aliases: { humanioid: 'humanoid' },
+    drop: ['junk'],
+    groups: [
+      { key: 'cr', label: 'Challenge Rating', tags: ['cr9', 'cr14'] },
+      { key: 'size', label: 'Size', tags: ['large', 'huge'] },
+      { key: 'type', label: 'Creature Type', tags: ['dragon', 'humanoid'] },
+    ],
+  };
+
+  it('orders the tag dictionary group-first (config order), then the rest alphabetical', () => {
+    const { filterIndex } = build(rawModels, { taxonomy });
+    expect(filterIndex.tags).toEqual([
+      'cr9', 'cr14', 'large', 'huge', 'dragon', 'humanoid', 'monstrosity',
+    ]);
+  });
+
+  it('emits tagGroups: one per config group present, plus a trailing "other"', () => {
+    const { filterIndex } = build(rawModels, { taxonomy });
+    expect(filterIndex.tagGroups.map((g) => g.key)).toEqual(['cr', 'size', 'type', 'other']);
+    const other = filterIndex.tagGroups.at(-1);
+    expect(other.label).toBe('Everything Else');
+    expect(other.tagIds).toEqual([filterIndex.tags.indexOf('monstrosity')]);
+    const all = filterIndex.tagGroups.flatMap((g) => g.tagIds).sort((a, b) => a - b);
+    expect(all).toEqual(filterIndex.tags.map((_, i) => i));
+  });
+
+  it('merges an aliased variant onto the canonical tag id', () => {
+    const models = rawModels.map((m) =>
+      m.id === 'drakanchor-1a2b3c4d' ? { ...m, tags: [...m.tags, 'humanioid', 'junk'] } : m
+    );
+    const { filterIndex } = build(models, { taxonomy });
+    expect(filterIndex.tags.filter((t) => t === 'humanoid')).toHaveLength(1);
+    expect(filterIndex.tags).not.toContain('humanioid');
+    expect(filterIndex.tags).not.toContain('junk');
+    const drak = filterIndex.models.find((m) => m.id === 'drakanchor-1a2b3c4d');
+    expect(drak.t).toContain(filterIndex.tags.indexOf('humanoid'));
+  });
+
+  it('with no taxonomy, every tag lands in a single "other" group, dict alphabetical', () => {
+    const { filterIndex } = build();
+    expect(filterIndex.tagGroups).toHaveLength(1);
+    expect(filterIndex.tagGroups[0].key).toBe('other');
+    expect(filterIndex.tags).toEqual([...filterIndex.tags].sort());
+  });
+
+  it('surfaces a warning for a group tag absent from the snapshot', () => {
+    const tax = { groups: [{ key: 'x', label: 'X', tags: ['cr9', 'nonexistent'] }] };
+    const { warnings } = build(rawModels, { taxonomy: tax });
+    expect(warnings.taxonomy).toEqual(
+      expect.arrayContaining([expect.stringMatching(/references "nonexistent"/)])
+    );
+  });
+});
+
 describe('buildIndex -- per-model record', () => {
   it('encodes tags/sub/rel as sorted dictionary ids; null release stays null', () => {
     const { filterIndex } = build();

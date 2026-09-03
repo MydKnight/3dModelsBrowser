@@ -1,8 +1,12 @@
 // src/lib/filter-engine.ts
-// The bitset filter engine (docs/astro-rewrite-spec.md D4). Built once from
-// filter-index.json at island startup; every filter change re-runs filter() +
-// facetCounts() synchronously. Model ordinal 0 = newest (build-filter-index.mjs
-// sorts that way), so an ascending ordinal list is already "newest first".
+// The bitset filter engine (docs/astro-rewrite-spec.md D4, revised by
+// docs/filter-redesign-spec.md D4/D7). Built once from filter-index.json at
+// island startup; every filter change re-runs filter() + facetCounts()
+// synchronously. Model ordinal 0 = newest (build-filter-index.mjs sorts that
+// way), so an ascending ordinal list is already "newest first".
+//
+// Tag semantics: OR within a taxonomy group, AND across groups -- the same rule
+// subscriptions and releases already followed. There is no global AND/OR toggle.
 
 export interface FilterModel {
   id: string;
@@ -14,19 +18,25 @@ export interface FilterModel {
   th: string;
 }
 
+export interface TagGroup {
+  key: string;
+  label: string;
+  tagIds: number[];
+}
+
 export interface FilterIndex {
   tags: string[];
   subs: string[];
   rels: string[];
+  /** taxonomy groups (docs/filter-redesign-spec.md D3); last entry is `other` */
+  tagGroups?: TagGroup[];
   models: FilterModel[];
 }
 
-export type TagMode = 'AND' | 'OR';
 export type SortMode = 'newest' | 'name' | 'release';
 
 export interface FilterState {
   tags: number[];
-  tagMode: TagMode;
   subs: number[];
   rels: number[];
   query: string;
@@ -34,7 +44,7 @@ export interface FilterState {
 }
 
 export function emptyState(): FilterState {
-  return { tags: [], tagMode: 'AND', subs: [], rels: [], query: '', sort: 'newest' };
+  return { tags: [], subs: [], rels: [], query: '', sort: 'newest' };
 }
 
 export interface FacetCounts {
@@ -69,6 +79,8 @@ export class FilterEngine {
   private readonly tagBits: Bitset[];
   private readonly subBits: Bitset[];
   private readonly relBits: Bitset[];
+  /** tag id -> taxonomy group index (every tag has one; see constructor) */
+  private readonly groupIdOf: Int32Array;
 
   constructor(index: FilterIndex) {
     this.index = index;
@@ -79,6 +91,25 @@ export class FilterEngine {
     this.tagBits = index.tags.map(make);
     this.subBits = index.subs.map(make);
     this.relBits = index.rels.map(make);
+
+    // Map each tag id to a group. tagGroups from the index normally covers every
+    // tag (the builder appends an `other` group); anything left uncovered (empty
+    // or partial tagGroups) is lumped into one trailing implicit group so the
+    // OR-within / AND-across logic still has a well-defined partition.
+    const n = index.tags.length;
+    this.groupIdOf = new Int32Array(n).fill(-1);
+    const groups = (index.tagGroups ?? []).map((g) =>
+      g.tagIds.filter((t) => t >= 0 && t < n)
+    );
+    groups.forEach((ids, gi) => {
+      for (const t of ids) this.groupIdOf[t] = gi;
+    });
+    const leftover: number[] = [];
+    for (let t = 0; t < n; t++) if (this.groupIdOf[t] === -1) leftover.push(t);
+    if (leftover.length) {
+      for (const t of leftover) this.groupIdOf[t] = groups.length;
+      groups.push(leftover);
+    }
 
     this.all = make();
     for (let i = 0; i < this.count; i++) {
@@ -104,9 +135,10 @@ export class FilterEngine {
   }
 
   /**
-   * All the pieces facetCounts needs, computed once: the per-group masks, the
-   * final result, and the result with each single group's constraint removed
-   * (so a facet count is a couple of bitset ops, not a full re-filter).
+   * Everything facetCounts needs, computed once: per-group tag unions, the sub
+   * and rel masks, the final result, and the result with each single group's
+   * constraint removed (so a facet count is a couple of bitset ops rather than
+   * a full re-filter).
    */
   private compute(state: FilterState) {
     const W = this.words;
@@ -116,22 +148,39 @@ export class FilterEngine {
 
     const subMask = subs.length ? unionOf(subs.map((s) => this.subBits[s]), W) : this.all;
     const relMask = rels.length ? unionOf(rels.map((r) => this.relBits[r]), W) : this.all;
-    let tagMask: Bitset;
-    if (!tags.length) {
-      tagMask = this.all;
-    } else if (state.tagMode === 'OR') {
-      tagMask = unionOf(tags.map((t) => this.tagBits[t]), W);
-    } else {
-      tagMask = this.all.slice();
-      for (const t of tags) andInto(tagMask, this.tagBits[t]);
-    }
     const qMask = this.queryMask(state.query);
 
-    const isect = (...masks: Bitset[]): Bitset => {
+    // Selected tags partitioned by taxonomy group; each group is an OR union,
+    // and the unions are AND-ed together (and with subs/rels/name).
+    const selByGroup = new Map<number, number[]>();
+    for (const t of tags) {
+      const g = this.groupIdOf[t];
+      const arr = selByGroup.get(g);
+      if (arr) arr.push(t);
+      else selByGroup.set(g, [t]);
+    }
+    const groupUnions = new Map<number, Bitset>();
+    for (const [g, ids] of selByGroup) {
+      groupUnions.set(g, unionOf(ids.map((t) => this.tagBits[t]), W));
+    }
+
+    const isect = (masks: Bitset[]): Bitset => {
       const out = this.all.slice();
       for (const m of masks) if (m !== this.all) andInto(out, m);
       return out;
     };
+    const groupMaskList = [...groupUnions.values()];
+    const result = isect([...groupMaskList, subMask, relMask, qMask]);
+
+    // result with one selected group's own union removed -- only needed for
+    // groups that currently have a selection (otherwise it equals `result`).
+    const baseNoGroup = new Map<number, Bitset>();
+    for (const g of groupUnions.keys()) {
+      const others = [...groupUnions.entries()]
+        .filter(([k]) => k !== g)
+        .map(([, m]) => m);
+      baseNoGroup.set(g, isect([...others, subMask, relMask, qMask]));
+    }
 
     return {
       tags,
@@ -139,12 +188,11 @@ export class FilterEngine {
       rels,
       subMask,
       relMask,
-      tagMask,
-      qMask,
-      result: isect(subMask, relMask, tagMask, qMask),
-      baseNoTags: isect(subMask, relMask, qMask),
-      baseNoSubs: isect(relMask, tagMask, qMask),
-      baseNoRels: isect(subMask, tagMask, qMask),
+      groupUnions,
+      baseNoGroup,
+      result,
+      baseNoSubs: isect([...groupMaskList, relMask, qMask]),
+      baseNoRels: isect([...groupMaskList, subMask, qMask]),
     };
   }
 
@@ -176,9 +224,10 @@ export class FilterEngine {
 
   /**
    * Per-value counts for the facet panel: how many models would be in the
-   * result if that value were additionally selected in its group (AND mode
-   * shrinks for tags; OR mode / subs / rels widen within the group).
-   * Already-selected values report the current result size.
+   * result if that value were additionally selected in its group. Adding a
+   * value to a group that already has a selection widens that group (OR);
+   * adding the first value of a group narrows the result (AND). Already-selected
+   * values report the current result size.
    */
   facetCounts(state: FilterState): FacetCounts {
     const c = this.compute(state);
@@ -186,16 +235,15 @@ export class FilterEngine {
     const W = this.words;
     const scratch = new Uint32Array(W);
 
-    const orMode = c.tags.length > 0 && state.tagMode === 'OR';
     const tagCount = (i: number): number => {
-      if (c.tags.includes(i)) return cur;
       const tb = this.tagBits[i];
-      if (!tb) return cur;
-      if (orMode) {
-        // result | (baseNoTags & tag)
-        for (let w = 0; w < W; w++) scratch[w] = c.result[w] | (c.baseNoTags[w] & tb[w]);
+      if (!tb || c.tags.includes(i)) return cur;
+      const g = this.groupIdOf[i];
+      const union = c.groupUnions.get(g);
+      if (union) {
+        const base = c.baseNoGroup.get(g)!;
+        for (let w = 0; w < W; w++) scratch[w] = base[w] & (union[w] | tb[w]);
       } else {
-        // AND mode / no tags selected: result & tag
         for (let w = 0; w < W; w++) scratch[w] = c.result[w] & tb[w];
       }
       return popcount(scratch);

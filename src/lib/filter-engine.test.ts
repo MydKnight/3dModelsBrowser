@@ -1,11 +1,14 @@
-// docs/astro-rewrite-spec.md D4 -- bitset engine vs an independent naive
-// (plain .filter) reference, over a synthetic index and many random states.
+// docs/astro-rewrite-spec.md D4 + docs/filter-redesign-spec.md D4/D7 -- bitset
+// engine vs an independent naive (plain .filter) reference, over a synthetic
+// index and many random states. Tag semantics: OR within a taxonomy group, AND
+// across groups.
 import { describe, expect, it } from 'vitest';
 import {
   FilterEngine,
   emptyState,
   type FilterIndex,
   type FilterState,
+  type TagGroup,
 } from './filter-engine';
 
 // --- synthetic index ---------------------------------------------------
@@ -14,6 +17,11 @@ function makeIndex(n: number, seed = 1): FilterIndex {
   let s = seed;
   const rnd = () => (s = (s * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff;
   const tags = Array.from({ length: 12 }, (_, i) => `tag${i}`);
+  const tagGroups: TagGroup[] = [
+    { key: 'g0', label: 'G0', tagIds: [0, 1, 2, 3] },
+    { key: 'g1', label: 'G1', tagIds: [4, 5, 6, 7] },
+    { key: 'other', label: 'Everything Else', tagIds: [8, 9, 10, 11] },
+  ];
   const subs = ['Alpha Studio', 'Bravo Minis', 'Charlie Forge'];
   const rels = Array.from({ length: 6 }, (_, i) => `Release ${i}`);
   const models = Array.from({ length: n }, (_, i) => {
@@ -32,20 +40,29 @@ function makeIndex(n: number, seed = 1): FilterIndex {
       th: `m${i}.webp`,
     };
   });
-  return { tags, subs, rels, models };
+  return { tags, tagGroups, subs, rels, models };
 }
 
 // --- naive reference -------------------------------------------------
+
+function groupOf(index: FilterIndex, tagId: number): string {
+  for (const g of index.tagGroups ?? []) if (g.tagIds.includes(tagId)) return g.key;
+  return '__leftover__';
+}
 
 function naiveFilter(index: FilterIndex, st: FilterState): number[] {
   let rows = index.models.map((m, i) => ({ m, i }));
   if (st.subs.length) rows = rows.filter(({ m }) => st.subs.includes(m.s));
   if (st.rels.length) rows = rows.filter(({ m }) => m.r !== null && st.rels.includes(m.r));
   if (st.tags.length) {
-    rows =
-      st.tagMode === 'OR'
-        ? rows.filter(({ m }) => st.tags.some((t) => m.t.includes(t)))
-        : rows.filter(({ m }) => st.tags.every((t) => m.t.includes(t)));
+    const byGroup = new Map<string, number[]>();
+    for (const t of st.tags) {
+      const k = groupOf(index, t);
+      (byGroup.get(k) ?? byGroup.set(k, []).get(k)!).push(t);
+    }
+    for (const ids of byGroup.values()) {
+      rows = rows.filter(({ m }) => ids.some((t) => m.t.includes(t))); // OR within, AND across
+    }
   }
   const q = st.query.trim().toLowerCase();
   if (q) rows = rows.filter(({ m }) => m.nl.includes(q));
@@ -76,7 +93,6 @@ function randomState(index: FilterIndex, rnd: () => number): FilterState {
     Array.from({ length: len }, (_, i) => i).filter(() => rnd() < p);
   return {
     tags: pick(index.tags.length, 0.15),
-    tagMode: rnd() > 0.5 ? 'OR' : 'AND',
     subs: pick(index.subs.length, 0.25),
     rels: pick(index.rels.length, 0.1),
     query: rnd() > 0.7 ? `model ${Math.floor(rnd() * 3)}` : '',
@@ -108,8 +124,13 @@ describe('FilterEngine vs naive reference (fuzz)', () => {
 });
 
 describe('FilterEngine basics', () => {
+  // elf + undead share a group ('a'); mage is in its own group ('b').
   const index: FilterIndex = {
     tags: ['elf', 'mage', 'undead'],
+    tagGroups: [
+      { key: 'a', label: 'A', tagIds: [0, 2] },
+      { key: 'b', label: 'B', tagIds: [1] },
+    ],
     subs: ['S1', 'S2'],
     rels: ['R1', 'R2'],
     models: [
@@ -125,12 +146,12 @@ describe('FilterEngine basics', () => {
     expect(engine.filter(emptyState())).toEqual([0, 1, 2, 3]);
   });
 
-  it('AND tags: must have all', () => {
-    expect(engine.filter({ ...emptyState(), tags: [0, 1] })).toEqual([0]);
+  it('tags in the same group are OR-ed (union)', () => {
+    expect(engine.filter({ ...emptyState(), tags: [0, 2] })).toEqual([0, 1, 2]); // elf OR undead
   });
 
-  it('OR tags: any of', () => {
-    expect(engine.filter({ ...emptyState(), tags: [0, 2], tagMode: 'OR' })).toEqual([0, 1, 2]);
+  it('tags in different groups are AND-ed (intersection)', () => {
+    expect(engine.filter({ ...emptyState(), tags: [0, 1] })).toEqual([0]); // elf AND mage
   });
 
   it('subscription filter is OR within group', () => {
@@ -154,11 +175,15 @@ describe('FilterEngine basics', () => {
     expect(engine.filter({ ...emptyState(), sort: 'name' })).toEqual([0, 1, 2, 3]);
   });
 
-  it('facet count in AND mode = models remaining if the tag is also selected', () => {
-    const fc = engine.facetCounts({ ...emptyState(), tags: [0] }); // currently elf -> {a,b}
-    expect(fc.tags[1]).toBe(1); // + mage -> {a}
-    expect(fc.tags[2]).toBe(0); // + undead -> {}
+  it('facet count for a new group = models remaining if that tag is also selected', () => {
+    const fc = engine.facetCounts({ ...emptyState(), tags: [0] }); // elf -> {a,b}
+    expect(fc.tags[1]).toBe(1); // + mage (new group) -> {a}
     expect(fc.tags[0]).toBe(2); // already selected -> current size
+  });
+
+  it('facet count within an already-selected group widens (OR)', () => {
+    const fc = engine.facetCounts({ ...emptyState(), tags: [0] }); // elf, group a -> {a,b}
+    expect(fc.tags[2]).toBe(3); // + undead (same group) -> elf OR undead -> {a,b,c}
   });
 
   it('facet count for a subscription = result size if that sub is added', () => {
@@ -171,6 +196,21 @@ describe('FilterEngine basics', () => {
     const e = new FilterEngine({ tags: [], subs: [], rels: [], models: [] });
     expect(e.filter(emptyState())).toEqual([]);
     expect(e.facetCounts(emptyState())).toEqual({ tags: [], subs: [], rels: [] });
+  });
+
+  it('treats tags with no declared group as one shared leftover group', () => {
+    const ix: FilterIndex = {
+      tags: ['x', 'y'],
+      tagGroups: [], // nothing declared
+      subs: ['S'],
+      rels: ['R'],
+      models: [
+        { id: 'p', n: 'P', nl: 'p', t: [0], s: 0, r: 0, th: 'p.webp' },
+        { id: 'q', n: 'Q', nl: 'q', t: [1], s: 0, r: 0, th: 'q.webp' },
+      ],
+    };
+    // x and y OR together (same leftover group), not AND
+    expect(new FilterEngine(ix).filter({ ...emptyState(), tags: [0, 1] })).toEqual([0, 1]);
   });
 
   it('ignores out-of-range filter ids (e.g. from a stale URL)', () => {

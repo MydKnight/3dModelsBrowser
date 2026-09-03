@@ -21,11 +21,6 @@ describe('stateToQuery', () => {
     expect(q).toBe('q=drow&tags=elf%2Cmage&subs=Loot+Studios&sort=name');
   });
 
-  it('emits tagmode=or only when OR and tags are selected', () => {
-    expect(stateToQuery({ ...emptyState(), tags: [0], tagMode: 'OR' }, dict)).toContain('tagmode=or');
-    expect(stateToQuery({ ...emptyState(), tags: [], tagMode: 'OR' }, dict)).toBe('');
-  });
-
   it('omits sort when newest', () => {
     expect(stateToQuery({ ...emptyState(), sort: 'newest' }, dict)).toBe('');
   });
@@ -33,8 +28,13 @@ describe('stateToQuery', () => {
 
 describe('queryToState', () => {
   it('round-trips a full state', () => {
-    const state = { ...emptyState(), tags: [1, 2], tagMode: 'OR' as const, subs: [1], rels: [0], query: 'x', sort: 'release' as const };
+    const state = { ...emptyState(), tags: [1, 2], subs: [1], rels: [0], query: 'x', sort: 'release' as const };
     expect(queryToState(stateToQuery(state, dict), dict)).toEqual(state);
+  });
+
+  it('ignores a legacy tagmode= param without error', () => {
+    expect(() => queryToState('tags=elf&tagmode=or', dict)).not.toThrow();
+    expect(queryToState('tags=elf&tagmode=or', dict).tags).toEqual([1]);
   });
 
   it('tolerates a leading ?', () => {
@@ -50,9 +50,5 @@ describe('queryToState', () => {
 
   it('falls back to newest for an unknown sort', () => {
     expect(queryToState('sort=bogus', dict).sort).toBe('newest');
-  });
-
-  it('AND is the default tag mode', () => {
-    expect(queryToState('tags=elf', dict).tagMode).toBe('AND');
   });
 });

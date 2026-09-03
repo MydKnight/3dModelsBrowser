@@ -1,10 +1,10 @@
 /** @jsxImportSource preact */
 // src/components/GalleryIsland.tsx
-// The single client:load island (docs/astro-rewrite-spec.md D1). Filter panel +
-// windowed results grid. State/engine/URL-sync live in ../lib/use-gallery;
-// grid geometry in ../lib/grid-layout (both unit-tested). Windowing is
-// hand-rolled over grid-layout rather than @tanstack/virtual -- uniform-height
-// rows make it a few lines, and the math is already covered by tests.
+// The single client:load island (docs/astro-rewrite-spec.md D1, redesigned by
+// docs/filter-redesign-spec.md). Gallery top bar (search + sort + Filters
+// button + active-filter chips) + a slide-in overlay drawer holding the faceted
+// filters + a windowed results grid. State/engine/URL-sync live in
+// ../lib/use-gallery; grid geometry in ../lib/grid-layout (both unit-tested).
 
 import { useComputed, useSignal } from '@preact/signals';
 import { useEffect, useMemo, useRef } from 'preact/hooks';
@@ -17,10 +17,11 @@ import {
   rowCount,
   type GridConfig,
 } from '../lib/grid-layout';
-import { createGallery } from '../lib/use-gallery';
+import { createGallery, type Gallery } from '../lib/use-gallery';
 
 const GRID: GridConfig = { minColWidth: 240, gap: 16, rowHeight: 288 };
 const OVERSCAN_ROWS = 3;
+const FILTERABLE_THRESHOLD = 12; // show a filter box in a group with more than this many values
 
 export interface GalleryIslandProps {
   index: FilterIndex;
@@ -31,13 +32,14 @@ export interface GalleryIslandProps {
 
 export default function GalleryIsland({ index, history, initialSearch }: GalleryIslandProps) {
   const hist = history ?? (typeof window !== 'undefined' ? window.history : undefined);
-  const search =
-    initialSearch ?? (typeof window !== 'undefined' ? window.location.search : '');
 
   const gallery = useMemo(() => {
     let t: ReturnType<typeof setTimeout> | undefined;
     return createGallery(index, {
-      initialSearch: search,
+      // Start from an explicitly-passed search (tests) or empty. The real
+      // window.location.search is applied in an effect below so the first
+      // client render matches the SSR'd HTML (no hydration mismatch).
+      initialSearch: initialSearch ?? '',
       onQueryString: (qs) => {
         if (!hist) return;
         clearTimeout(t);
@@ -51,10 +53,20 @@ export default function GalleryIsland({ index, history, initialSearch }: Gallery
   }, [index]);
   useEffect(() => () => gallery.dispose(), [gallery]);
 
+  // Apply the live URL after hydration (only when the host didn't pass one).
+  useEffect(() => {
+    if (initialSearch == null && typeof window !== 'undefined' && window.location.search) {
+      gallery.hydrate(window.location.search);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gallery]);
+
   const scrollRef = useRef<HTMLDivElement>(null);
+  const filtersBtnRef = useRef<HTMLButtonElement>(null);
   const viewportH = useSignal(1200);
   const containerW = useSignal(1024);
   const scrollTop = useSignal(0);
+  const drawerOpen = useSignal(false);
 
   // measure
   useEffect(() => {
@@ -69,12 +81,15 @@ export default function GalleryIsland({ index, history, initialSearch }: Gallery
   }, []);
 
   const results = gallery.results;
-  const facets = gallery.facets;
   const state = gallery.state;
 
   const columns = useComputed(() => columnsForWidth(containerW.value, GRID));
   const rows = useComputed(() => rowCount(results.value.length, columns.value));
   const totalH = useComputed(() => contentHeight(rows.value, GRID));
+  const activeFacetCount = useComputed(() => {
+    const s = state.value;
+    return s.tags.length + s.subs.length + s.rels.length;
+  });
 
   // restore scroll position saved before a detail-page navigation
   useEffect(() => {
@@ -108,18 +123,23 @@ export default function GalleryIsland({ index, history, initialSearch }: Gallery
     return out;
   });
 
+  const closeDrawer = () => {
+    drawerOpen.value = false;
+    filtersBtnRef.current?.focus();
+  };
+
   return (
     <div class="gallery">
-      <aside class="filters">
+      <div class="topbar">
         <input
           type="search"
+          class="topbar-search"
           placeholder="Search by name"
           value={state.value.query}
           onInput={(e) => gallery.setQuery((e.target as HTMLInputElement).value)}
           aria-label="Search by name"
         />
-
-        <label>
+        <label class="topbar-sort">
           Sort
           <select
             value={state.value.sort}
@@ -130,64 +150,20 @@ export default function GalleryIsland({ index, history, initialSearch }: Gallery
             <option value="release">Release</option>
           </select>
         </label>
+        <button
+          type="button"
+          class="filters-btn"
+          ref={filtersBtnRef}
+          aria-haspopup="dialog"
+          aria-expanded={drawerOpen.value}
+          onClick={() => (drawerOpen.value = true)}
+        >
+          Filters
+          {activeFacetCount.value > 0 && <span class="badge">{activeFacetCount.value}</span>}
+        </button>
+      </div>
 
-        {gallery.isFiltered.value && (
-          <button type="button" onClick={() => gallery.clear()}>
-            Clear all filters
-          </button>
-        )}
-
-        <FacetGroup
-          legend="Subscription"
-          values={index.subs}
-          selected={state.value.subs}
-          counts={facets.value.subs}
-          onToggle={gallery.toggleSub}
-        />
-        <FacetGroup
-          legend="Release"
-          values={index.rels}
-          selected={state.value.rels}
-          counts={facets.value.rels}
-          onToggle={gallery.toggleRel}
-        />
-
-        <fieldset class="tags">
-          <legend>
-            Tags
-            <span class="mode-toggle">
-              {(['AND', 'OR'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  aria-pressed={state.value.tagMode === m}
-                  onClick={() => gallery.setTagMode(m)}
-                >
-                  {m}
-                </button>
-              ))}
-            </span>
-          </legend>
-          <div class="tag-cloud">
-            {index.tags.map((tag, i) => {
-              const count = facets.value.tags[i];
-              const on = state.value.tags.includes(i);
-              return (
-                <button
-                  key={tag}
-                  type="button"
-                  class="tag"
-                  aria-pressed={on}
-                  disabled={!on && count === 0}
-                  onClick={() => gallery.toggleTag(i)}
-                >
-                  {tag} <span class="count">{count}</span>
-                </button>
-              );
-            })}
-          </div>
-        </fieldset>
-      </aside>
+      <ChipBar gallery={gallery} />
 
       <main class="results">
         <p class="result-count" role="status">
@@ -226,45 +202,229 @@ export default function GalleryIsland({ index, history, initialSearch }: Gallery
           )}
         </div>
       </main>
+
+      <FilterDrawer
+        open={drawerOpen.value}
+        onClose={closeDrawer}
+        gallery={gallery}
+        index={index}
+      />
     </div>
   );
 }
 
-function FacetGroup({
-  legend,
+function ChipBar({ gallery }: { gallery: Gallery }) {
+  const chips = gallery.activeChips.value;
+  if (!chips.length) return null;
+  return (
+    <div class="chip-bar" role="region" aria-label="Active filters">
+      {chips.map((c, i) => (
+        <button
+          key={`${c.kind}-${i}`}
+          type="button"
+          class="chip"
+          aria-label={`Remove ${c.label}`}
+          onClick={c.remove}
+        >
+          {c.label} <span aria-hidden="true">×</span>
+        </button>
+      ))}
+      <button type="button" class="chip chip-clear" onClick={() => gallery.clear()}>
+        Clear all
+      </button>
+    </div>
+  );
+}
+
+function FilterDrawer({
+  open,
+  onClose,
+  gallery,
+  index,
+}: {
+  open: boolean;
+  onClose: () => void;
+  gallery: Gallery;
+  index: FilterIndex;
+}) {
+  const panelRef = useRef<HTMLElement>(null);
+  const state = gallery.state;
+  const facets = gallery.facets;
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    panelRef.current?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [open]);
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== 'Tab' || !panelRef.current) return;
+    const f = panelRef.current.querySelectorAll<HTMLElement>(
+      'a[href],button:not([disabled]),input:not([disabled]),select,summary,[tabindex]:not([tabindex="-1"])'
+    );
+    if (!f.length) return;
+    const first = f[0];
+    const last = f[f.length - 1];
+    if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault();
+      first.focus();
+    }
+  };
+
+  return (
+    <div class={`drawer-root${open ? ' open' : ''}`} hidden={!open}>
+      <div class="drawer-backdrop" onClick={onClose} />
+      <aside
+        class="drawer"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Filters"
+        ref={panelRef}
+        tabIndex={-1}
+        onKeyDown={onKeyDown}
+      >
+        <header class="drawer-head">
+          <h2>Filters</h2>
+          <button type="button" class="drawer-close" aria-label="Close filters" onClick={onClose}>
+            ×
+          </button>
+        </header>
+
+        <div class="drawer-body">
+          <fieldset class="subs">
+            <legend>Subscription</legend>
+            {index.subs.map((v, i) => (
+              <label key={v}>
+                <input
+                  type="checkbox"
+                  checked={state.value.subs.includes(i)}
+                  onChange={() => gallery.toggleSub(i)}
+                />
+                {v} <span class="count">{facets.value.subs[i]}</span>
+              </label>
+            ))}
+          </fieldset>
+
+          <GroupDropdown
+            label="Release"
+            values={index.rels}
+            selected={index.rels.map((_, i) => state.value.rels.includes(i))}
+            counts={facets.value.rels}
+            onToggle={gallery.toggleRel}
+            filterable
+          />
+
+          {(index.tagGroups ?? []).map((g) => (
+            <GroupDropdown
+              key={g.key}
+              label={g.label}
+              values={g.tagIds.map((id) => index.tags[id])}
+              selected={g.tagIds.map((id) => state.value.tags.includes(id))}
+              counts={g.tagIds.map((id) => facets.value.tags[id])}
+              onToggle={(local) => gallery.toggleTag(g.tagIds[local])}
+              filterable={g.tagIds.length > FILTERABLE_THRESHOLD}
+            />
+          ))}
+        </div>
+
+        <footer class="drawer-foot">
+          {gallery.isFiltered.value && (
+            <button type="button" onClick={() => gallery.clear()}>
+              Clear all filters
+            </button>
+          )}
+          <button type="button" class="primary" onClick={onClose}>
+            Show {gallery.resultCount.value} models
+          </button>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
+function GroupDropdown({
+  label,
   values,
   selected,
   counts,
   onToggle,
+  filterable = false,
 }: {
-  legend: string;
+  label: string;
   values: string[];
-  selected: number[];
+  selected: boolean[];
   counts: number[];
-  onToggle: (id: number) => void;
+  onToggle: (localIndex: number) => void;
+  filterable?: boolean;
 }) {
-  if (values.length === 0) return null;
+  const q = useSignal('');
+  const shown = useComputed(() => {
+    const needle = q.value.trim().toLowerCase();
+    return values
+      .map((v, i) => ({ v, i }))
+      .filter(({ v }) => !needle || v.toLowerCase().includes(needle));
+  });
+  if (!values.length) return null;
+  const selectedCount = selected.filter(Boolean).length;
+
   return (
-    <fieldset>
-      <legend>{legend}</legend>
-      {values.map((v, i) => (
-        <label key={v}>
+    <details class="group-dropdown">
+      <summary>
+        <span class="group-label">{label}</span>
+        {selectedCount > 0 && <span class="badge">{selectedCount}</span>}
+      </summary>
+      <div class="group-body">
+        {filterable && (
           <input
-            type="checkbox"
-            checked={selected.includes(i)}
-            onChange={() => onToggle(i)}
+            type="search"
+            class="group-filter"
+            placeholder={`Filter ${label.toLowerCase()}`}
+            aria-label={`Filter ${label}`}
+            value={q.value}
+            onInput={(e) => (q.value = (e.target as HTMLInputElement).value)}
           />
-          {v} <span class="count">{counts[i]}</span>
-        </label>
-      ))}
-    </fieldset>
+        )}
+        <div class="group-options">
+          {shown.value.map(({ v, i }) => (
+            <label key={v}>
+              <input
+                type="checkbox"
+                checked={selected[i]}
+                disabled={!selected[i] && counts[i] === 0}
+                onChange={() => onToggle(i)}
+              />
+              {v} <span class="count">{counts[i]}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </details>
   );
 }
 
 function Card({ id, name, thumb }: { id: string; name: string; thumb: string }) {
   return (
     <a class="card" href={`/m/${id}`}>
-      <img src={`/thumbnails/${thumb}`} alt={name} loading="lazy" decoding="async" width="240" height="240" />
+      <img
+        src={`/thumbnails/${thumb}`}
+        alt={name}
+        loading="lazy"
+        decoding="async"
+        width="240"
+        height="240"
+      />
       <span class="card-name">{name}</span>
     </a>
   );
