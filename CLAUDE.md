@@ -119,9 +119,15 @@ NAS  -> scan-nas.mjs        -> data/raw/models.json          (gitignored)
 
 ## Current State
 
-**v2.0 shipped to `main` 2026-09-02** (`873a87f`). Auto-deploys via Netlify.
-Real 3,882-model snapshot, produced by the QNAP container. 140 tests,
-code-reviewed. Next.js fully removed, `npm audit` clean.
+**v2.0 shipped and live 2026-09-02.** Merged to `main`, Netlify production
+build confirmed green, 3,882-model gallery deployed. Real snapshot produced by
+the QNAP container. 140 tests, code-reviewed. Next.js fully removed, `npm audit`
+clean.
+
+Netlify gotcha (resolved): removing Next.js from the repo doesn't remove
+Netlify's auto-installed Next.js **runtime** -- it had to be cleared in
+Site configuration -> Build & deploy -> Build settings -> Runtime (set blank;
+static Astro needs none), then a **clear-cache** redeploy.
 
 ## Known Gaps
 
@@ -140,13 +146,13 @@ code-reviewed. Next.js fully removed, `npm audit` clean.
 
 ## Next Actions
 
-1. Set the QNAP `.env` `TARGET_BRANCH=main`.
-2. Confirm the Netlify production build from `main` succeeded (Node 22).
-3. Fix the two data-quality items on the NAS, then `docker compose -f
+1. Set the QNAP `.env` `TARGET_BRANCH=main` (before the next container run --
+   `feat/nas-data-container` is deleted).
+2. Fix the two data-quality items on the NAS, then `docker compose -f
    compose.nas.yml run --rm nas-refresh` to refresh the snapshot.
-4. Local: `git branch -D feat/astro-rewrite feat/nas-data-container`;
+3. Local: `git branch -D feat/astro-rewrite feat/nas-data-container`;
    `rm -rf public/images` when convenient.
-5. Phase 2 work as prioritised.
+4. Phase 2 work as prioritised (`docs/astro-rewrite-spec.md` -> Phase 2 backlog).
 
 ## Test Coverage Standard
 
@@ -172,7 +178,9 @@ Defined 2026-09-01 with the v2.0 spec (`docs/astro-rewrite-spec.md` -> Testing).
 
 Netlify builds `main` via the GitHub pull hook (push = auto-deploy).
 `npm run build` = `astro build` only -- reads the committed `src/data/*.json` +
-`public/thumbnails|detail/` snapshot, never contacts the NAS.
+`public/thumbnails|detail/` snapshot, never contacts the NAS. Config is in
+`netlify.toml` (`publish = "dist"`, Node 22); the site's **Runtime** must be
+blank in the Netlify UI (a leftover Next.js runtime broke the first build).
 
 **Refreshing the data** = the QNAP container: `docker compose -f
 compose.nas.yml run --rm nas-refresh` from the NAS's `3dmodels-apps/` folder.
